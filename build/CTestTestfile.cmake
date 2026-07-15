@@ -1,0 +1,21 @@
+# CMake generated Testfile for 
+# Source directory: D:/fdlang
+# Build directory: D:/fdlang/build
+# 
+# This file includes the relevant testing commands required for 
+# testing this directory and lists subdirectories to be tested as well.
+if(CTEST_CONFIGURATION_TYPE MATCHES "^([Dd][Ee][Bb][Uu][Gg])$")
+  add_test("LexerTest" "D:/fdlang/build/Debug/test_lexer.exe")
+  set_tests_properties("LexerTest" PROPERTIES  _BACKTRACE_TRIPLES "D:/fdlang/CMakeLists.txt;53;add_test;D:/fdlang/CMakeLists.txt;0;")
+elseif(CTEST_CONFIGURATION_TYPE MATCHES "^([Rr][Ee][Ll][Ee][Aa][Ss][Ee])$")
+  add_test("LexerTest" "D:/fdlang/build/Release/test_lexer.exe")
+  set_tests_properties("LexerTest" PROPERTIES  _BACKTRACE_TRIPLES "D:/fdlang/CMakeLists.txt;53;add_test;D:/fdlang/CMakeLists.txt;0;")
+elseif(CTEST_CONFIGURATION_TYPE MATCHES "^([Mm][Ii][Nn][Ss][Ii][Zz][Ee][Rr][Ee][Ll])$")
+  add_test("LexerTest" "D:/fdlang/build/MinSizeRel/test_lexer.exe")
+  set_tests_properties("LexerTest" PROPERTIES  _BACKTRACE_TRIPLES "D:/fdlang/CMakeLists.txt;53;add_test;D:/fdlang/CMakeLists.txt;0;")
+elseif(CTEST_CONFIGURATION_TYPE MATCHES "^([Rr][Ee][Ll][Ww][Ii][Tt][Hh][Dd][Ee][Bb][Ii][Nn][Ff][Oo])$")
+  add_test("LexerTest" "D:/fdlang/build/RelWithDebInfo/test_lexer.exe")
+  set_tests_properties("LexerTest" PROPERTIES  _BACKTRACE_TRIPLES "D:/fdlang/CMakeLists.txt;53;add_test;D:/fdlang/CMakeLists.txt;0;")
+else()
+  add_test("LexerTest" NOT_AVAILABLE)
+endif()

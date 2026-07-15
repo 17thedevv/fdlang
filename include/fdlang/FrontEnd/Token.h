@@ -1,9 +1,11 @@
 #pragma once
-#include <string>
+#include <cstdint>
+#include <string_view>
 
 namespace fl {
     enum class TokenType {
         END_OF_FILE,
+        ERROR,
         
         // operators
         PLUS,                // +
@@ -52,8 +54,7 @@ namespace fl {
     class Token {
     public:
         TokenType type;
-        std::string text;
-        int line;
-        int column;
+        std::string_view text;
+        uint32_t byteOffset; // offset in the source code
     };
 }

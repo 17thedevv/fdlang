@@ -1,0 +1,21 @@
+Start testing: Jul 15 10:26 SE Asia Standard Time
+----------------------------------------------------------
+1/1 Testing: LexerTest
+1/1 Test: LexerTest
+Command: "D:/fdlang/build/Release/test_lexer.exe"
+Directory: D:/fdlang/build
+"LexerTest" start time: Jul 15 10:26 SE Asia Standard Time
+Output:
+----------------------------------------------------------
+--- RUNNING FDLANG TESTS ---
+[OK] testVariableDeclaration passed!
+--- ALL TESTS PASSED SUCCESSFULLY! ---
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"LexerTest" end time: Jul 15 10:26 SE Asia Standard Time
+"LexerTest" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Jul 15 10:26 SE Asia Standard Time

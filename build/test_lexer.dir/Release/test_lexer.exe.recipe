@@ -5,13 +5,7 @@
       <FullPath>D:\fdlang\build\x64\Release\ZERO_CHECK</FullPath>
     </ProjectOutput>
     <ProjectOutput>
-      <FullPath>D:\fdlang\build\Release\fdlang.exe</FullPath>
-    </ProjectOutput>
-    <ProjectOutput>
       <FullPath>D:\fdlang\build\Release\test_lexer.exe</FullPath>
-    </ProjectOutput>
-    <ProjectOutput>
-      <FullPath>D:\fdlang\build\x64\Release\ALL_BUILD</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

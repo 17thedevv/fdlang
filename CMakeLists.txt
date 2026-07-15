@@ -39,3 +39,15 @@ add_executable(fdlang ${SRC_FILES})
 
 # BƯỚC CUỐI CÙNG: Liên kết mã nguồn của ta với các thư viện LLVM đã chuẩn bị ở Phần 1
 target_link_libraries(fdlang PRIVATE ${LLVM_LIBS})
+
+# --- CẤU HÌNH KIỂM THỬ (TESTING) ---
+enable_testing()
+
+# Tạo một file thực thi độc lập riêng cho việc test
+add_executable(test_lexer tests/test_lexer.cpp src/Frontend/Lexer.cpp)
+
+# Chỉ định đường dẫn thư mục include để test_lexer có thể đọc được file .h
+target_include_directories(test_lexer PRIVATE include)
+
+# Đăng ký file thực thi này với hệ thống CTest
+add_test(NAME LexerTest COMMAND test_lexer)
