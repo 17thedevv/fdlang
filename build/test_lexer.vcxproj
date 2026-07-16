@@ -365,7 +365,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="D:\fdlang\tests\test_lexer.cpp" />
-    <ClCompile Include="D:\fdlang\src\Frontend\Lexer.cpp" />
+    <ClCompile Include="D:\fdlang\src\FrontEnd\Lexer.cpp" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

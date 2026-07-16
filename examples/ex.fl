@@ -1,3 +1,22 @@
-// File main.fl
-dec tien_tra = 50000;
-dec so_luong = 2;
+// Test khai báo và gán giá trị
+dec x = 10;
+dec y = 20;
+dec z;
+z = x + y;
+
+// Test khối lệnh { } và in ra
+if (z > 20) {
+    print z;
+}
+
+// Test vòng lặp và gán giá trị thay đổi
+dec counter = 0;
+while (counter < 5) {
+    counter = counter + 1;
+}
+
+print counter;
+
+// Test khai báo biến chưa khởi tạo (nếu bạn bỏ comment dòng dưới, Semantic sẽ báo lỗi)
+// dec a;
+// print a;

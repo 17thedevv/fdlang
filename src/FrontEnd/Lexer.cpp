@@ -1,7 +1,19 @@
 #include "fdlang/Frontend/Lexer.h"
 #include <cctype>
+#include <unordered_map>
+#include <string>
 
 namespace fl {
+
+std::unordered_map<std::string, TokenType> keywords = {
+    {"dec", TokenType::KW_DEC},
+    {"if", TokenType::KW_IF},
+    {"else", TokenType::KW_ELSE},
+    {"while", TokenType::KW_WHILE},
+    {"print", TokenType::KW_PRINT},
+    {"true", TokenType::KW_TRUE},
+    {"false", TokenType::KW_FALSE}
+};
 
 Lexer::Lexer(std::string_view sourceCode) : source(sourceCode), position(0) {}
 
@@ -87,6 +99,8 @@ Token Lexer::identifierOrKeyword() {
     else if (text == "fn") type = TokenType::KW_FN;
     else if (text == "if") type = TokenType::KW_IF;
     else if (text == "else") type = TokenType::KW_ELSE;
+    else if (text == "while") type = TokenType::KW_WHILE; // CẬP NHẬT: Thêm while
+    else if (text == "print") type = TokenType::KW_PRINT; // CẬP NHẬT: Thêm print
     else if (text == "return") type = TokenType::KW_RETURN;
     else if (text == "export") type = TokenType::KW_EXPORT;
     else if (text == "extern") type = TokenType::KW_EXTERN;

@@ -1,2 +1,4 @@
 LexerTest 3 0.00271717
+ResolverTest 1 0.0273084
+DiagnosticTest 1 0.0129601
 ---

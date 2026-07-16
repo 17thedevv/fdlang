@@ -178,9 +178,17 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <Project>{2D07F2CF-7B49-3C75-928B-57F67872A1B9}</Project>
       <Name>fdlang</Name>
     </ProjectReference>
+    <ProjectReference Include="D:\fdlang\build\test_diagnostic.vcxproj">
+      <Project>{BF8891AF-1A0F-3C18-A9A1-AD4D088ED9ED}</Project>
+      <Name>test_diagnostic</Name>
+    </ProjectReference>
     <ProjectReference Include="D:\fdlang\build\test_lexer.vcxproj">
       <Project>{8884F1CA-AD46-3729-BF7A-C51D72FCA790}</Project>
       <Name>test_lexer</Name>
+    </ProjectReference>
+    <ProjectReference Include="D:\fdlang\build\test_resolver.vcxproj">
+      <Project>{BAE57353-63B8-379B-A8C9-D49959928A39}</Project>
+      <Name>test_resolver</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

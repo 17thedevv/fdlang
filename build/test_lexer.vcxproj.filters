@@ -4,7 +4,7 @@
     <ClCompile Include="D:\fdlang\tests\test_lexer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="D:\fdlang\src\Frontend\Lexer.cpp">
+    <ClCompile Include="D:\fdlang\src\FrontEnd\Lexer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

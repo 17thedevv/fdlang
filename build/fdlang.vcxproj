@@ -364,13 +364,13 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="D:\fdlang\src\BackEnd\IRGenerator.cpp" />
+    <ClCompile Include="D:\fdlang\src\main.cpp" />
     <ClCompile Include="D:\fdlang\src\FrontEnd\Lexer.cpp" />
     <ClCompile Include="D:\fdlang\src\FrontEnd\Parser.cpp" />
-    <ClCompile Include="D:\fdlang\src\MiddleEnd\Semantic.cpp" />
     <ClCompile Include="D:\fdlang\src\MiddleEnd\SymbolTable.cpp" />
+    <ClCompile Include="D:\fdlang\src\MiddleEnd\Resolver.cpp" />
+    <ClCompile Include="D:\fdlang\src\BackEnd\IRGenerator.cpp" />
     <ClCompile Include="D:\fdlang\src\Support\Diagnostic.cpp" />
-    <ClCompile Include="D:\fdlang\src\main.cpp" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

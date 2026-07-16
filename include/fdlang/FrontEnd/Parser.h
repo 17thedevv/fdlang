@@ -20,18 +20,30 @@ private:
     bool match(TokenType type);
     Token consume(TokenType type, const char* errorMessage);
 
-    // --- Các hàm xây dựng Cây (Parsing methods) ---
-    
-    // 1. Phân tích cấp cao nhất
-    std::unique_ptr<StmtNode> parseStatement();
-    
-    // 2. Phân tích câu lệnh
-    std::unique_ptr<VarDeclStmt> parseVarDeclaration();
-    
-    // 3. Phân tích biểu thức
-    std::unique_ptr<ExprNode> parseExpression();
-    std::unique_ptr<ExprNode> parsePrimary(); // Điểm chốt cuối: Số (Number) hoặc Biến (Identifier)
+    // Program
+std::unique_ptr<StmtNode> parseDeclaration();
+std::unique_ptr<StmtNode> parseStatement();
 
+// Declaration
+std::unique_ptr<StmtNode> parseVarDeclaration();
+
+// Statements
+std::unique_ptr<StmtNode> parseAssignmentStatement();
+std::unique_ptr<StmtNode> parseExpressionStatement();
+std::unique_ptr<StmtNode> parseBlockStatement();
+std::unique_ptr<StmtNode> parseIfStatement();
+std::unique_ptr<StmtNode> parseWhileStatement();
+std::unique_ptr<StmtNode> parsePrintStatement();
+
+// Expressions
+std::unique_ptr<ExprNode> parseExpression();
+std::unique_ptr<ExprNode> parseEquality();
+std::unique_ptr<ExprNode> parseComparison();
+std::unique_ptr<ExprNode> parseTerm();
+std::unique_ptr<ExprNode> parseFactor();
+std::unique_ptr<ExprNode> parseUnary();
+std::unique_ptr<ExprNode> parsePostfix();
+std::unique_ptr<ExprNode> parsePrimary();
 public:
     explicit Parser(Lexer& lexer);
     

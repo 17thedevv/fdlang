@@ -1,11 +1,12 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <string_view>
-#include <iomanip>
 #include <cstdlib>
-#include "fdlang/Frontend/Lexer.h"
-#include "fdlang/Frontend/Parser.h"
+#include "fdlang/FrontEnd/Lexer.h"
+#include "fdlang/FrontEnd/Parser.h"
+#include "fdlang/MiddleEnd/SymbolTable.h"
+#include "fdlang/MiddleEnd/Resolver.h"
+#include "fdlang/Support/Diagnostic.h"
 
 using namespace fl;
 
@@ -32,40 +33,51 @@ int main(int argc, char* argv[]) {
     std::string filepath = argv[1];
     std::string sourceCode = readFile(filepath);
 
-    std::cout << "[FDLANG COMPILER - MVP PHASE]\n";
+    std::cout << "[FDLANG COMPILER - RESOLVER PHASE]\n";
     std::cout << "Compiling: " << filepath << "\n";
     std::cout << "-----------------------------------\n";
 
-    // 1. Khởi tạo Lexer
+    // ── Phase 1: Lexer ────────────────────────────────────────────────────────
     Lexer lexer(sourceCode);
 
-    // 2. Nhồi Lexer vào Parser
+    // ── Phase 2: Parser ───────────────────────────────────────────────────────
+    std::cout << "[1] Phan tich cu phap (Parser)...\n";
     Parser parser(lexer);
-
-    // 3. Ra lệnh Parse để xây dựng cây AST
-    std::cout << "[1] Bat dau phan tich cu phap...\n";
     auto ast = parser.parse();
+    std::cout << "[2] Parse thanh cong! ("
+              << ast->statements.size() << " cau lenh)\n";
 
-    // 4. Kiểm tra kết quả (Kiểm thử MVP)
-    std::cout << "[2] Parse thanh cong! Da tim thay " << ast->statements.size() << " cau lenh.\n";
-    std::cout << "[3] Kiem tra chi tiet cay AST (Cac Node trong RAM):\n";
+    // ── Phase 3: Resolver ─────────────────────────────────────────────────────
+    // Resolver is the first MiddleEnd pass.
+    // It annotates every IdentifierExpr, VarDeclStmt, and AssignStmtNode
+    // with a SymbolID that connects the usage to its declaration.
+    //
+    // TODO(CompilerContext): diag, symbolTable, and future SourceManager /
+    // StringInterner will be owned by a shared CompilerContext passed here.
+    std::cout << "[3] Giai quyet ten (Resolver)...\n";
+    DiagnosticEngine diag;
+    SymbolTable symbolTable;
+    Resolver resolver(symbolTable, diag);
+    bool resolveOk = resolver.resolve(ast.get());
 
-    // Lặp qua các câu lệnh và ép kiểu (dynamic_cast) để in ra xem nó có hiểu đúng không
-    for (size_t i = 0; i < ast->statements.size(); ++i) {
-        auto* stmt = ast->statements[i].get();
-        
-        if (auto* varDecl = dynamic_cast<VarDeclStmt*>(stmt)) {
-            std::cout << "  -> Cau lenh " << i + 1 << ": Khai bao bien\n";
-            std::cout << "       - Ten bien : " << varDecl->varName << "\n";
-            
-            if (auto* numExpr = dynamic_cast<NumberExpr*>(varDecl->initializer.get())) {
-                std::cout << "       - Gia tri  : " << numExpr->value << "\n";
-            }
-        }
+    if (!resolveOk) {
+        diag.flush();
+        std::cerr << "[!] Resolver that bai voi "
+                  << diag.errorCount() << " loi.\n";
+        return 65;
     }
 
+    std::cout << "[4] Resolver thanh cong! ("
+              << symbolTable.symbolCount() << " symbols, "
+              << symbolTable.scopeCount()  << " scopes)\n";
     std::cout << "-----------------------------------\n";
-    std::cout << "Build hoan tat. Khong co loi cu phap.\n";
+    std::cout << "Build hoan tat.\n";
+
+    // ── Phase 4+: TypeChecker, BorrowChecker, IRGenerator (future) ────────────
+    // Each future pass receives:
+    //   - ast         (AST with symbolId annotations)
+    //   - symbolTable (fully populated registry)
+    // and adds its own side tables (TypeTable, BorrowTable, etc.)
 
     return 0;
 }

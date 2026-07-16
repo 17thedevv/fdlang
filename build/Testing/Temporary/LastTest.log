@@ -1,21 +1,65 @@
-Start testing: Jul 15 10:26 SE Asia Standard Time
+Start testing: Jul 16 10:15 SE Asia Standard Time
 ----------------------------------------------------------
-1/1 Testing: LexerTest
-1/1 Test: LexerTest
-Command: "D:/fdlang/build/Release/test_lexer.exe"
+2/3 Testing: ResolverTest
+2/3 Test: ResolverTest
+Command: "D:/fdlang/build/Debug/test_resolver.exe"
 Directory: D:/fdlang/build
-"LexerTest" start time: Jul 15 10:26 SE Asia Standard Time
+"ResolverTest" start time: Jul 16 10:15 SE Asia Standard Time
 Output:
 ----------------------------------------------------------
---- RUNNING FDLANG TESTS ---
-[OK] testVariableDeclaration passed!
---- ALL TESTS PASSED SUCCESSFULLY! ---
+========================================
+  FDLANG RESOLVER TESTS
+========================================
+[OK] test01_simpleDeclarationAndUse
+[OK] test02_useBeforeDeclare
+[OK] test03_undeclaredIdentifier
+[OK] test04_doubleDeclarationSameScope
+[OK] test05_shadowingInNestedScope
+[OK] test06_innerScopeVariableInvisibleOutside
+[OK] test07_assignToUndeclared
+[OK] test08_printResolvesArgument
+[OK] test09_ifElseSeparateScopes
+[OK] test10_whileLoopBodyScope
+[OK] test11_declarationNoInitializer
+[OK] test12_outerNameAccessibleAfterInnerScopeCloses
+========================================
+  ALL 12 TESTS PASSED
+========================================
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"ResolverTest" end time: Jul 16 10:15 SE Asia Standard Time
+"ResolverTest" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/3 Testing: DiagnosticTest
+3/3 Test: DiagnosticTest
+Command: "D:/fdlang/build/Debug/test_diagnostic.exe"
+Directory: D:/fdlang/build
+"DiagnosticTest" start time: Jul 16 10:15 SE Asia Standard Time
+Output:
+----------------------------------------------------------
+========================================
+  FDLANG DIAGNOSTIC ENGINE TESTS
+========================================
+[OK] test01_freshEngineIsClean
+[OK] test02_errorIncrementsCount
+[OK] test03_fatalCountsAsError
+[OK] test04_warningDoesNotCountAsError
+[OK] test05_noteDoesNotIncrementCounters
+[OK] test06_hasErrorsReflectsCount
+[OK] test07_allDiagnosticsPreservesOrder
+[OK] test08_resetClearsState
+========================================
+  ALL 8 TESTS PASSED
+========================================
 <end of output>
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"LexerTest" end time: Jul 15 10:26 SE Asia Standard Time
-"LexerTest" time elapsed: 00:00:00
+"DiagnosticTest" end time: Jul 16 10:15 SE Asia Standard Time
+"DiagnosticTest" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Jul 15 10:26 SE Asia Standard Time
+End testing: Jul 16 10:15 SE Asia Standard Time

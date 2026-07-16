@@ -48,7 +48,10 @@ namespace fl {
         KW_CONST,   // const
         KW_MOD,     // mod
         KW_TRUE,    // true  
-        KW_FALSE    // false
+        KW_FALSE,    // false
+        // --- NHÓM MỚI: Từ khóa điều khiển ---
+        KW_WHILE,
+        KW_PRINT,   
     };
 
     class Token {
