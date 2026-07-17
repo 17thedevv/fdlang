@@ -3,8 +3,8 @@
 | Hạng mục | Giá trị |
 |----------|---------|
 | **Branch** | `main` |
-| **Commit mới nhất** | `f499c3b` — *MVP completed* |
-| **Phase hiện tại** | **MVP Completed** |
+| **Commit mới nhất** | TBD |
+| **Phase hiện tại** | **Language Specification v1.0 Frozen** |
 | **Ngôn ngữ triển khai** | C++17 |
 | **Build system** | CMake 3.20+ |
 | **Backend** | LLVM |
@@ -157,6 +157,11 @@ ALL 12 TESTS PASSED ✅
 | Lexer | ✅ Hoàn chỉnh |
 | Parser | ✅ Hoàn chỉnh — **frozen** |
 
+### Documentation & Specification
+| File | Nội dung |
+|------|----------|
+| `grammar.md` | ✅ **v1.0 Frozen** — Hoàn thiện toàn bộ đặc tả EBNF, OOP, Comptime, Generics, Traits, Ergonomics. |
+
 ---
 
 ## ⚠️ Đang thiếu / Chưa triển khai
@@ -224,7 +229,7 @@ Tổng thể MVP                    ██████████   100% ✅
 ## 🗺️ Bước tiếp theo
 
 ### Ngắn hạn
-1. **Hoàn thiện Parser** — thêm `fn`, `return`, function call, `const`
+1. **Triển khai Lexer.cpp & Parser.cpp** — Cập nhật mã nguồn C++ để bám sát `grammar.md` v1.0.
 2. **Diagnostic Engine** — cải thiện xuất lỗi, thay `std::exit()`
 3. **Initialization checker** — chuyển logic từ SemanticAnalyzer cũ vào pass mới
 

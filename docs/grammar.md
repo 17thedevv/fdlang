@@ -11,9 +11,32 @@ letter     ::= "a" | "b" | ... | "z" | "A" | ... | "Z" | "_"
 digit      ::= "0" | "1" | ... | "9"
 
 IDENTIFIER ::= letter (letter | digit)*
-NUMBER     ::= digit+ ("." digit+)?
-STRING     ::= '"' (bất_kỳ_ký_tự_nào_trừ_dấu_ngoặc_kép)* '"'
-path_segment ::= IDENTIFIER generic_instantiation?
+// --- TỪ VỰNG & LITERALS (LEXER) ---
+dec_digit  ::= "0" | "1" | ... | "9"
+hex_digit  ::= dec_digit | "a" | ... | "f" | "A" | ... | "F"
+oct_digit  ::= "0" | "1" | ... | "7"
+bin_digit  ::= "0" | "1"
+
+dec_digits ::= dec_digit (dec_digit | "_")*
+hex_digits ::= hex_digit (hex_digit | "_")*
+oct_digits ::= oct_digit (oct_digit | "_")*
+bin_digits ::= bin_digit (bin_digit | "_")*
+
+int_suffix   ::= "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128"
+float_suffix ::= "f32" | "f64"
+
+INTEGER_LITERAL ::= ( dec_digits | "0x" hex_digits | "0o" oct_digits | "0b" bin_digits ) int_suffix?
+FLOAT_LITERAL   ::= dec_digits "." dec_digits ( ("e" | "E") ("+" | "-")? dec_digits )? float_suffix?
+
+escape_seq      ::= "\" ( "n" | "r" | "t" | "\" | "0" | "'" | '"' | "x" hex_digit hex_digit | "u{" hex_digits "}" )
+
+CHAR_LITERAL    ::= "'" ( bất_kỳ_ký_tự_nào_trừ_nháy_đơn_và_backslash | escape_seq ) "'"
+STRING_LITERAL  ::= '"' ( bất_kỳ_ký_tự_nào_trừ_nháy_kép_và_backslash | escape_seq )* '"'
+RAW_STRING_LITERAL ::= "r" "#"* '"' (bất_kỳ_ký_tự_nào) '"' "#"* // Số lượng # phải khớp nhau
+
+BYTE_LITERAL    ::= "b" CHAR_LITERAL
+BYTE_STRING_LITERAL ::= "b" STRING_LITERAL
+path_segment ::= (IDENTIFIER | KW_SELF_TYP) generic_instantiation?
 path         ::= path_segment ("::" path_segment)*
 
 // --- TỪ KHÓA ---
@@ -42,6 +65,15 @@ KW_CONTINUE::= "continue"
 KW_IN      ::= "in"
 KW_TRUE    ::= "true"
 KW_FALSE   ::= "false"
+KW_TYPE    ::= "type"
+KW_SIZEOF  ::= "sizeof"
+KW_ALIGNOF ::= "alignof"
+KW_AWAIT   ::= "await"
+KW_ASYNC   ::= "async"
+KW_COMPTIME::= "comptime"
+KW_DYN     ::= "dyn"
+KW_SELF_VAL::= "self"
+KW_SELF_TYP::= "Self"
 
 // --- TOÁN TỬ VÀ KÝ HIỆU ---
 PLUS       ::= "+"
@@ -60,9 +92,33 @@ BANG       ::= "!"
 LESS_EQ    ::= "<="
 GREATER_EQ ::= ">="
 GENERIC_START::= "@<"
+PERCENT    ::= "%"
+BIT_OR     ::= "|"
+BIT_XOR    ::= "^"
+BIT_NOT    ::= "~"
+LSHIFT     ::= "<<"
+RSHIFT     ::= ">>"
+DOT_DOT    ::= ".."
+DOT_DOT_EQ ::= "..="
+DOT_DOT_DOT::= "..."
+AT_BRACKET ::= "@["
 
 // Toán tử gán & so sánh
-ASSIGN     ::= "="
+ASSIGN       ::= "="
+PLUS_ASSIGN  ::= "+="
+MINUS_ASSIGN ::= "-="
+STAR_ASSIGN  ::= "*="
+SLASH_ASSIGN ::= "/="
+PERC_ASSIGN  ::= "%="
+BIT_AND_ASSIGN ::= "&="
+BIT_OR_ASSIGN  ::= "|="
+BIT_XOR_ASSIGN ::= "^="
+LSHIFT_ASSIGN  ::= "<<="
+RSHIFT_ASSIGN  ::= ">>="
+
+assign_op ::= ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | SLASH_ASSIGN 
+            | PERC_ASSIGN | BIT_AND_ASSIGN | BIT_OR_ASSIGN | BIT_XOR_ASSIGN 
+            | LSHIFT_ASSIGN | RSHIFT_ASSIGN
 EQ_EQ      ::= "=="
 BANG_EQ    ::= "!="
 LESS       ::= "<"
@@ -80,9 +136,14 @@ L_BRACKET  ::= "["
 R_BRACKET  ::= "]"
 DOT        ::= "."
 
-WHITESPACE ::= " " | "\t" | "\n" | "\r"
-COMMENT    ::= "//" (bất_kỳ_ký_tự_nào_trừ_dấu_xuống_dòng)* "\n"
+WHITESPACE    ::= " " | "\t" | "\n" | "\r"
+LINE_COMMENT  ::= "//" (bất_kỳ_ký_tự_nào_trừ_dấu_xuống_dòng)* "\n"
+BLOCK_COMMENT ::= "/*" (bất_kỳ_ký_tự_nào_bao_gồm_cả_xuống_dòng)* "*/"
+COMMENT       ::= LINE_COMMENT | BLOCK_COMMENT
 EOF        ::= End of File (Token đặc biệt do Lexer sinh ra)
+
+// --- ANNOTATIONS ---
+annotation  ::= AT_BRACKET IDENTIFIER ("(" argument_list ")")? "]"
 
 // --- CẤU TRÚC CHƯƠNG TRÌNH ---
 program     ::= declaration* EOF
@@ -97,6 +158,7 @@ declaration ::= use_decl
               | statement
               | extern_decl
               | mod_decl
+              | type_alias_decl
 
 use_decl      ::= "export"? KW_USE use_tree ";"
 
@@ -108,9 +170,11 @@ use_path      ::= IDENTIFIER ("::" IDENTIFIER)*
 
 use_tree_list ::= use_tree ("," use_tree)* ","?
 
-mod_decl      ::= "export"? "mod" IDENTIFIER "{" declaration* "}"
+mod_decl      ::= annotation* "export"? KW_MOD IDENTIFIER "{" declaration* "}"
 
-extern_decl ::= "extern" "fn" IDENTIFIER "(" parameters? ")" ("->" type)? ";"
+extern_decl ::= "extern" KW_FN IDENTIFIER "(" parameters? ")" ("->" type)? ";"
+
+type_alias_decl ::= "export"? KW_TYPE IDENTIFIER generic_params? "=" type ";"
 
 // --- GENERICS ---
 generic_params ::= "<" generic_param ("," generic_param)* ">"
@@ -118,18 +182,18 @@ generic_param  ::= IDENTIFIER (":" path ("+" path)* )?
 generic_instantiation ::= GENERIC_START type ("," type)* ">"
 
 // --- ENUM ---
-enum_decl ::= "export"? "enum" IDENTIFIER generic_params? "{" enum_variant_list "}"
+enum_decl ::= annotation* "export"? KW_ENUM IDENTIFIER generic_params? "{" enum_variant_list "}"
 enum_variant_list ::= enum_variant ("," enum_variant)* ","?
 enum_variant ::= IDENTIFIER ("(" parameters ")")?
 
 // --- STRUCT, TRAIT VÀ IMPL ---
-struct_decl ::= "export"? "struct" IDENTIFIER generic_params? "{" struct_field* "}"
+struct_decl ::= annotation* "export"? KW_STRUCT IDENTIFIER generic_params? "{" struct_field* "}"
 
 struct_field::= IDENTIFIER ":" type ";"
 
-trait_decl  ::= "export"? "trait" IDENTIFIER generic_params? "{" trait_method* "}"
+trait_decl  ::= annotation* "export"? KW_TRAIT IDENTIFIER generic_params? "{" trait_method* "}"
 
-trait_method::= "fn" IDENTIFIER "(" parameters? ")" ("->" type)? ";"
+trait_method::= KW_FN IDENTIFIER "(" parameters? ")" ("->" type)? ";"
 
 impl_decl   ::= inherent_impl | full_trait_impl
 
@@ -141,14 +205,34 @@ full_trait_impl ::= "impl" generic_params? path "for" path "{" func_decl* "}"
 var_decl_core ::= "export"? ("dec" | "const") IDENTIFIER (":" type)? "=" expression
 var_decl    ::= var_decl_core ";"
 
-func_decl   ::= "export"? "fn" IDENTIFIER generic_params? "(" parameters? ")" ("->" type)? block_stmt
+func_decl   ::= annotation* "export"? KW_COMPTIME? KW_ASYNC? KW_FN IDENTIFIER generic_params? "(" parameters? ")" ("->" type)? block_stmt
 
-parameters  ::= IDENTIFIER ":" type ("," IDENTIFIER ":" type)*
+regular_param  ::= IDENTIFIER ":" type
+variadic_param ::= IDENTIFIER ":" DOT_DOT_DOT type
+receiver_param ::= KW_SELF_VAL ":" type
 
-type           ::= reference_type | pointer_type | array_type | named_type
+parameters     ::= receiver_param ("," regular_param)* ("," variadic_param)?
+                 | receiver_param ("," variadic_param)?
+                 | regular_param ("," regular_param)* ("," variadic_param)?
+                 | variadic_param
+
+type           ::= reference_type 
+                 | pointer_type 
+                 | array_type 
+                 | tuple_type 
+                 | func_type 
+                 | never_type
+                 | named_type
+                 | trait_object_type
+
+trait_object_type ::= KW_DYN path
+
 reference_type ::= "&" KW_RW? type
 pointer_type   ::= "*" KW_RW? type
 array_type     ::= "[" type ("," const_expression)? "]"
+tuple_type     ::= "(" (type ("," type)* ","?)? ")"
+func_type      ::= KW_FN "(" (type ("," type)* ","?)? ")" "->" type
+never_type     ::= BANG
 named_type     ::= path
 
 // --- LỆNH VÀ BIỂU THỨC ---
@@ -161,6 +245,9 @@ statement   ::= expr_stmt
               | break_stmt
               | continue_stmt
               | unsafe_stmt
+              | comptime_stmt
+
+comptime_stmt ::= KW_COMPTIME block_stmt
 
 for_each_stmt ::= KW_FOR "(" IDENTIFIER KW_IN expression ")" block_stmt
 for_init      ::= var_decl_core | assignment
@@ -184,25 +271,30 @@ unsafe_stmt ::= "unsafe" block_stmt
 expression  ::= assignment
 const_expression ::= expression // Bắt buộc là hằng số tại compile-time
 
-assignment  ::= lvalue "=" expression 
-              | logical_or
+assignment  ::= lvalue assign_op expression 
+              | range_expr
 
 lvalue      ::= "*"* path ("[" expression "]" | "." IDENTIFIER)*
 
+range_expr  ::= logical_or ((".." | "..=") logical_or?)? 
+              | (".." | "..=") logical_or?
+
 logical_or  ::= logical_and ("||" logical_and)*
-logical_and ::= equality ("&&" equality)*
-
+logical_and ::= bitwise_or ("&&" bitwise_or)*
+bitwise_or  ::= bitwise_xor ("|" bitwise_xor)*
+bitwise_xor ::= bitwise_and ("^" bitwise_and)*
+bitwise_and ::= equality ("&" equality)*
 equality    ::= comparison (("==" | "!=") comparison)*
-
-comparison  ::= term (("<" | "<=" | ">" | ">=") term)*
-
+comparison  ::= shift (("<" | "<=" | ">" | ">=") shift)*
+shift       ::= term (("<<" | ">>") term)*
 term        ::= factor (("+" | "-") factor)*
-
-factor      ::= unary (("*" | "/") unary)*
+factor      ::= cast (("*" | "/" | "%") cast)*
+cast        ::= unary (KW_AS type)*
 
 unary       ::= "-" unary 
               | "*" unary
               | "!" unary
+              | "~" unary
               | "&" KW_RW? unary
               | primary
 
@@ -212,15 +304,28 @@ postfix_op  ::= "[" expression "]"
               | "++"
               | "--"
               | "(" argument_list? ")"
+              | "." KW_AWAIT
 
 primary     ::= base_primary postfix_op*
 
 // Thêm match_expr vào base_primary
-base_primary::= NUMBER 
-              | STRING 
+base_primary::= INTEGER_LITERAL 
+              | FLOAT_LITERAL 
+              | CHAR_LITERAL
+              | STRING_LITERAL
+              | RAW_STRING_LITERAL
+              | BYTE_LITERAL
+              | BYTE_STRING_LITERAL
               | KW_TRUE 
               | KW_FALSE 
+              | KW_SELF_VAL
               | array_literal
+              | tuple_literal
+              | struct_literal
+              | unit_literal
+              | lambda_expr
+              | sizeof_expr
+              | alignof_expr
               | path 
               | match_expr
               | "(" expression ")"
@@ -232,15 +337,32 @@ match_arm   ::= pattern "->" (expression | block_stmt) ","?
 
 enum_destruct ::= "(" IDENTIFIER ("," IDENTIFIER)* ")"
 
-pattern     ::= NUMBER 
-              | STRING 
+pattern     ::= INTEGER_LITERAL 
+              | FLOAT_LITERAL 
+              | CHAR_LITERAL
+              | STRING_LITERAL
+              | RAW_STRING_LITERAL
               | KW_TRUE 
               | KW_FALSE 
               | "_"
+              | tuple_pattern
+              | unit_literal
               | path enum_destruct?
 
-// --- MẢNG VÀ GỌI HÀM ---
+tuple_pattern ::= "(" pattern "," (pattern ("," pattern)* ","?)? ")"
+
+// --- MẢNG, TUPLE VÀ GỌI HÀM ---
 array_literal ::= "[" arguments? "]"
+
+tuple_literal ::= "(" expression "," (expression ("," expression)* ","?)? ")"
+
+unit_literal  ::= "(" ")"
+
+// --- STRUCT LITERAL, LAMBDA, SIZEOF ---
+struct_literal ::= path "{" (IDENTIFIER ":" expression ("," IDENTIFIER ":" expression)* ","?)? "}"
+lambda_expr    ::= "|" (IDENTIFIER (":" type)? ("," IDENTIFIER (":" type)?)* ","?)? "|" ("->" type)? (expression | block_stmt)
+sizeof_expr    ::= KW_SIZEOF "(" type ")"
+alignof_expr   ::= KW_ALIGNOF "(" type ")"
 
 // Hỗ trợ truyền tham số có tên (Named Arguments)
 argument_list ::= argument ("," argument)*
