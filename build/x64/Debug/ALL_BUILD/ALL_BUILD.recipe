@@ -8,10 +8,19 @@
       <FullPath>D:\fdlang\build\Debug\fdlang.exe</FullPath>
     </ProjectOutput>
     <ProjectOutput>
+      <FullPath>D:\fdlang\build\Debug\test_diagnostic.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>D:\fdlang\build\Debug\test_flir_generator.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
       <FullPath>D:\fdlang\build\Debug\test_lexer.exe</FullPath>
     </ProjectOutput>
     <ProjectOutput>
       <FullPath>D:\fdlang\build\Debug\test_resolver.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>D:\fdlang\build\Debug\test_typechecker.exe</FullPath>
     </ProjectOutput>
     <ProjectOutput>
       <FullPath>D:\fdlang\build\x64\Debug\ALL_BUILD</FullPath>

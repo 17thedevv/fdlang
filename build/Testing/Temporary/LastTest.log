@@ -1,10 +1,10 @@
-Start testing: Jul 16 10:15 SE Asia Standard Time
+Start testing: Jul 16 10:36 SE Asia Standard Time
 ----------------------------------------------------------
-2/3 Testing: ResolverTest
-2/3 Test: ResolverTest
+2/4 Testing: ResolverTest
+2/4 Test: ResolverTest
 Command: "D:/fdlang/build/Debug/test_resolver.exe"
 Directory: D:/fdlang/build
-"ResolverTest" start time: Jul 16 10:15 SE Asia Standard Time
+"ResolverTest" start time: Jul 16 10:36 SE Asia Standard Time
 Output:
 ----------------------------------------------------------
 ========================================
@@ -26,18 +26,18 @@ Output:
   ALL 12 TESTS PASSED
 ========================================
 <end of output>
-Test time =   0.03 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"ResolverTest" end time: Jul 16 10:15 SE Asia Standard Time
+"ResolverTest" end time: Jul 16 10:36 SE Asia Standard Time
 "ResolverTest" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-3/3 Testing: DiagnosticTest
-3/3 Test: DiagnosticTest
+3/4 Testing: DiagnosticTest
+3/4 Test: DiagnosticTest
 Command: "D:/fdlang/build/Debug/test_diagnostic.exe"
 Directory: D:/fdlang/build
-"DiagnosticTest" start time: Jul 16 10:15 SE Asia Standard Time
+"DiagnosticTest" start time: Jul 16 10:36 SE Asia Standard Time
 Output:
 ----------------------------------------------------------
 ========================================
@@ -58,8 +58,41 @@ Output:
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"DiagnosticTest" end time: Jul 16 10:15 SE Asia Standard Time
+"DiagnosticTest" end time: Jul 16 10:36 SE Asia Standard Time
 "DiagnosticTest" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Jul 16 10:15 SE Asia Standard Time
+4/4 Testing: TypeCheckerTest
+4/4 Test: TypeCheckerTest
+Command: "D:/fdlang/build/Debug/test_typechecker.exe"
+Directory: D:/fdlang/build
+"TypeCheckerTest" start time: Jul 16 10:36 SE Asia Standard Time
+Output:
+----------------------------------------------------------
+========================================
+  FDLANG TYPE CHECKER TESTS
+========================================
+[OK] test01_intDeclaration
+[OK] test02_boolDeclaration
+[OK] test03_mismatchedAssignment
+[OK] test04_invalidBinaryOperands
+[OK] test05_nonBoolIfCondition
+[OK] test06_nonBoolWhileCondition
+[OK] test07_useBeforeInitialization
+[OK] test08_assignmentInitializes
+[OK] test09_intPlusIntIsInt
+[OK] test10_intComparisonIsBool
+[OK] test11_boolEqualityIsBool
+[OK] test12_useBeforeInitInsideBlock
+========================================
+  ALL 12 TESTS PASSED
+========================================
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"TypeCheckerTest" end time: Jul 16 10:36 SE Asia Standard Time
+"TypeCheckerTest" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Jul 16 10:36 SE Asia Standard Time

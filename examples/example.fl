@@ -1,0 +1,22 @@
+use "math.flh"
+
+mod {
+    export dec PI: float_4 = 3.14;
+    export fn add(a: int_128, b: int_128) -> int_128 {
+        print_str(to_str(a + b));
+        return a + b;
+    } 
+    fn print_str(s: str){
+        print(str);
+    }
+}
+
+struct Mob {
+    hp: int_4;
+    dmg: int_4;
+}
+
+
+fn main(args: str[]) -> int {
+    return 0;
+}

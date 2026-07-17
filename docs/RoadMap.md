@@ -12,20 +12,20 @@ Ecosystem
 
 Phase 1 — MVP Compiler
 
-██████████░░░░░░░░░░░░░░░░
+██████████████████████████
 
 [✓] Lexer
 [✓] Parser
 [✓] Resolver
 
-[ ] Diagnostic Engine
-[ ] Type Checker
+[✓] Diagnostic Engine
+[✓] Type Checker
 
-[ ] FLIR Specification
-[ ] FLIR Generator
+[✓] FLIR Specification
+[✓] FLIR Generator
 
-[ ] LLVM Backend
-[ ] Executable Generation
+[✓] LLVM Backend
+[✓] Executable Generation
 
 Goal:
 .fl

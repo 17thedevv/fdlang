@@ -16,10 +16,28 @@
     <ClCompile Include="D:\fdlang\src\MiddleEnd\Resolver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D:\fdlang\src\MiddleEnd\TypeChecker.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\fdlang\src\MiddleEnd\FLIR.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\fdlang\src\MiddleEnd\FLIRGenerator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="D:\fdlang\src\BackEnd\IRGenerator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D:\fdlang\src\BackEnd\LLVMIRGenerator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\fdlang\src\BackEnd\ExecutableGenerator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="D:\fdlang\src\Support\Diagnostic.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\fdlang\src\Support\ClangLinker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

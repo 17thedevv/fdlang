@@ -20,3 +20,5 @@ print counter;
 // Test khai báo biến chưa khởi tạo (nếu bạn bỏ comment dòng dưới, Semantic sẽ báo lỗi)
 // dec a;
 // print a;
+
+print(x);

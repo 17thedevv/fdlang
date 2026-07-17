@@ -2,12 +2,22 @@
 #include "ASTNode.h"
 #include "fdlang/FrontEnd/ASTVisitor.h"
 #include "fdlang/Core/Types.h"          // SymbolID, kInvalidSymbolID
+#include "fdlang/Core/FLType.h"         // FLType — annotated by TypeChecker
 #include <string_view>
 #include <memory>
 
 namespace fl {
 
-class ExprNode : public ASTNode {};
+class ExprNode : public ASTNode {
+public:
+    // ── TypeChecker annotation ────────────────────────────────────────────────
+    // Set to FLType::Unknown by default (before TypeChecker runs).
+    // Filled in by TypeChecker pass on every expression node.
+    // Read by FLIRGenerator for code-generation decisions.
+    // BorrowChecker may also consult it for ownership rules on non-trivial types.
+    FLType inferredType = FLType::Unknown;
+};
+
 
 class NumberExpr : public ExprNode {
 public:

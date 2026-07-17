@@ -10,9 +10,14 @@
 	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="021fbb63-05db-3e15-b135-d959ba9d2de8" DefaultStartup="true">
 		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 		<BuildDependency Project="fdlang.vcxproj"/>
+		<BuildDependency Project="fdlang_rt.vcxproj"/>
 		<BuildDependency Project="test_diagnostic.vcxproj"/>
+		<BuildDependency Project="test_executable_generator.vcxproj"/>
+		<BuildDependency Project="test_flir_generator.vcxproj"/>
 		<BuildDependency Project="test_lexer.vcxproj"/>
+		<BuildDependency Project="test_llvmir_generator.vcxproj"/>
 		<BuildDependency Project="test_resolver.vcxproj"/>
+		<BuildDependency Project="test_typechecker.vcxproj"/>
 		<Build Solution="Debug|*" Project="false"/>
 		<Build Solution="Release|*" Project="false"/>
 		<Build Solution="MinSizeRel|*" Project="false"/>
@@ -43,6 +48,9 @@
 	<Project Path="fdlang.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="2d07f2cf-7b49-3c75-928b-57f67872a1b9">
 		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 	</Project>
+	<Project Path="fdlang_rt.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="92d1e90e-7b21-3c69-b8ae-f7d2ca0b0059">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
 	<Project Path="intrinsics_gen.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c619ab07-a5df-350b-ba95-c769a669e94f">
 		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 		<Build Solution="Debug|*" Project="false"/>
@@ -60,10 +68,22 @@
 	<Project Path="test_diagnostic.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="bf8891af-1a0f-3c18-a9a1-ad4d088ed9ed">
 		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 	</Project>
+	<Project Path="test_executable_generator.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="6313d0b4-443b-3cc0-b8c0-7180ff80ba98">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="test_flir_generator.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="664fdf9a-ab6b-3ee5-828d-f4d14edc6126">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
 	<Project Path="test_lexer.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="8884f1ca-ad46-3729-bf7a-c51d72fca790">
 		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 	</Project>
+	<Project Path="test_llvmir_generator.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="e1a95ba3-d60c-3ffd-996b-4b71e15ee80d">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
 	<Project Path="test_resolver.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="bae57353-63b8-379b-a8c9-d49959928a39">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="test_typechecker.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="62e1c51c-64f1-38b8-96bd-58ce62fd8d30">
 		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 	</Project>
 </Solution>

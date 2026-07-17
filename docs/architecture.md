@@ -58,8 +58,6 @@ Lifetime Analyzer
 FLIR Generator
         ▼
 Optimizer
-        ▼
-.flo
 
 ──────────────
 Back End
@@ -71,10 +69,15 @@ LLVM Optimizer
         ▼
 Machine Code
 
-
 Each compiler pass has a single responsibility.
 
 No pass should perform work belonging to another stage.
+
+**Golden Rules for Every Compiler Pass:**
+Before implementing any pass, we must ask 3 questions:
+1. **Pass này có đúng trách nhiệm không?** (Does this pass have the right responsibility?)
+2. **Có làm việc của pass khác không?** (Is it doing another pass's job?)
+3. **Có dễ mở rộng không?** (Is it easy to extend?)
 
 # 3. Module System
 
@@ -93,37 +96,11 @@ Explicit visibility:
 Long-term goals:
 
 - incremental compilation
-- module caching
+- compiler caching
 - fast linking
 - hot reload
 
-
-# 4. Compilation Unit (.flo)
-
-Unlike traditional object files, fdlang introduces the `.flo` module format.
-
-A `.flo` file represents the compilation unit of the fdlang ecosystem.
-
-It may contain:
-
-- FLIR
-- Symbol information
-- Type metadata
-- Dependency graph
-- Debug information
-- Reflection metadata
-- Optimization cache
-- Incremental compilation cache
-
-This architecture enables:
-
-- incremental compilation
-- module cache
-- fast builds
-- hot reload
-- IDE integration
-
-# 5. Memory Model
+# 4. Memory Model
 
 Memory safety is a core design goal.
 
@@ -140,7 +117,7 @@ Heap allocation is explicit.
 
 Automatic garbage collection is not part of the language.
 
-# 6. Type System
+# 5. Type System
 
 The type system is statically checked.
 
@@ -153,7 +130,7 @@ Future compiler passes include:
 - trait resolution
 - lifetime checking
 
-# 7. Diagnostic Engine
+# 6. Diagnostic Engine
 
 Every compiler pass reports errors through a shared Diagnostic Engine.
 
@@ -171,7 +148,7 @@ Diagnostics should provide:
 - notes
 - suggestions
 
-# 8. Design Principles
+# 7. Design Principles
 
 The following principles guide every language feature.
 

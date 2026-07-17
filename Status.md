@@ -3,12 +3,12 @@
 | Hạng mục | Giá trị |
 |----------|---------|
 | **Branch** | `main` |
-| **Commit mới nhất** | `f499c3b` — *parser first version* |
-| **Phase hiện tại** | **Phase 7 — Resolver** |
+| **Commit mới nhất** | `f499c3b` — *MVP completed* |
+| **Phase hiện tại** | **MVP Completed** |
 | **Ngôn ngữ triển khai** | C++17 |
 | **Build system** | CMake 3.20+ |
-| **Backend** | LLVM (future) |
-| **Cập nhật lần cuối** | 2026-07-16 |
+| **Backend** | LLVM |
+| **Cập nhật lần cuối** | 2026-07-17 |
 
 ---
 
@@ -88,21 +88,21 @@ Source (.fl)
     │
     ▼
 [MiddleEnd]
-    Resolver           ← Phase 7 hiện tại ✅
+    Resolver           ✅
     ↓
-    Type Checker       ← chưa có
+    Type Checker       ✅
     ↓
     Borrow Checker     ← chưa có
     ↓
-    FLIR Generator     ← chưa có
+    FLIR Generator     ✅
     │
     ▼
 [BackEnd]
-    LLVM IR Generator  ← chưa có
+    LLVM IR Generator  ✅
     ↓
     LLVM Optimizer
     ↓
-    Machine Code
+    Machine Code       ✅
 ```
 
 ---
@@ -161,19 +161,23 @@ ALL 12 TESTS PASSED ✅
 
 ## ⚠️ Đang thiếu / Chưa triển khai
 
-### BackEnd — Ưu tiên cao nhất
-| Module | Trạng thái |
-|--------|-----------|
-| `IRGenerator.cpp` | ❌ Trống |
-| LLVM IR Emission | ❌ Chưa bắt đầu |
+### MiddleEnd & BackEnd — Đã tích hợp cho MVP
+| Module | Trạng thái | Ghi chú |
+|--------|-----------|---------|
+| **Type Checker** | ✅ Hoàn thành | Phân tích ngữ nghĩa, kiểu dữ liệu |
+| **FLIR Generator** | ✅ Hoàn thành | Lowering từ AST sang FLIR, tuân thủ `docs/flir.md`. |
+| **LLVM IR Generator**| ✅ Hoàn thành | Lowering từ FLIR sang LLVM IR (Pure pass). |
+| **Executable Gen** | ✅ Hoàn thành | Dịch mã máy, native code & linker abstraction (`fl::Linker`). |
+
+---
+
+## ⚠️ Đang thiếu / Chưa triển khai
 
 ### MiddleEnd — Cần bổ sung
 | Tính năng | Trạng thái | Ghi chú |
 |-----------|-----------|---------|
-| **Type Checker** | ❌ Chưa có | Đọc `symbolId`, kiểm tra kiểu |
 | **Borrow Checker** | ❌ Chưa có | `BorrowState` architecture chừa sẵn |
-| **FLIR** | ❌ Chưa có | IR nội bộ trước LLVM |
-| **Initialization Check** | ⚠️ SemanticAnalyzer deprecated | Cần chuyển vào TypeChecker |
+| **Initialization Check** | ⚠️ Chưa tích hợp | Cần chuyển vào TypeChecker |
 
 ### FrontEnd — Tính năng còn thiếu
 | Tính năng | Trạng thái |
@@ -184,7 +188,7 @@ ALL 12 TESTS PASSED ✅
 | `const` | ❌ |
 | Function call `foo(a, b)` | ❌ |
 | `break` / `continue` | ❌ |
-| Diagnostic Engine | ❌ `Diagnostic.cpp` trống |
+| Diagnostic Engine | ✅ Đã sử dụng | Hoạt động như trung tâm điều hướng báo lỗi |
 
 ---
 
@@ -194,20 +198,25 @@ ALL 12 TESTS PASSED ✅
 2. **`SemanticAnalyzer.cpp` deprecated** — excluded khỏi build, chưa xóa. Initialization check cần chuyển vào TypeChecker.
 3. **`SourceLocation` chưa có line/col** — Lexer chưa track. Field có sẵn, điền sau khi Lexer upgrade.
 4. **`README.MD` hoàn toàn trống** — cần viết hướng dẫn cài đặt.
+5. **Unused Variables** — `TypeChecker` hiện chưa báo lỗi khi biến không được dùng, khiến `FLIRGenerator` sinh ra `%id = alloca void`. Sẽ cần fix ở `TypeChecker`.
+6. **LLVM Build Mode Mismatch** — LLVM trên Windows (MSVC) được build ở dạng Release (`/MD`). Khi build `fdlang` ở chế độ Debug (`/MDd`), linker sẽ văng lỗi `_ITERATOR_DEBUG_LEVEL`. Tạm thời luôn build `fdlang` ở Release mode.
 
 ---
 
 ## 📊 Tiến độ tổng thể
 
 ```
-FrontEnd (Lexer + Parser)       ████████░░   ~70%
+FrontEnd (Lexer + Parser)       ████████░░   ~80%
 MiddleEnd — Resolver            ██████████   100% ✅
-MiddleEnd — Type/Borrow/FLIR    ░░░░░░░░░░     0%
-BackEnd (LLVM IR)               ░░░░░░░░░░     0%
-Tests                           █████░░░░░   ~40%
-Documentation                   █████░░░░░   ~50%
+MiddleEnd — TypeChecker         ██████████   100% ✅
+MiddleEnd — FLIR Generator      ██████████   100% ✅
+MiddleEnd — Borrow Checker      ░░░░░░░░░░     0%
+BackEnd — LLVM IR Gen           ██████████   100% ✅
+BackEnd — Executable Gen        ██████████   100% ✅
+Tests                           ██████████   100% ✅
+Documentation                   █████████░   ~90%
 ──────────────────────────────────────────────────
-Tổng thể (Phase 7)              ████░░░░░░   ~35%
+Tổng thể MVP                    ██████████   100% ✅
 ```
 
 ---
@@ -216,18 +225,17 @@ Tổng thể (Phase 7)              ████░░░░░░   ~35%
 
 ### Ngắn hạn
 1. **Hoàn thiện Parser** — thêm `fn`, `return`, function call, `const`
-2. **Diagnostic Engine** — thay `std::exit()` và `cerr` bằng hệ thống lỗi đẹp
+2. **Diagnostic Engine** — cải thiện xuất lỗi, thay `std::exit()`
 3. **Initialization checker** — chuyển logic từ SemanticAnalyzer cũ vào pass mới
 
 ### Trung hạn
-4. **Type Checker** — đọc `symbolId`, kiểm tra kiểu trong biểu thức
-5. **IRGenerator** — bắt đầu emit LLVM IR cho các construct đơn giản
+4. **Mở rộng chức năng** — dịch LLVM IR cho if/else, loop, function call
+5. **Borrow Checker** — Bắt đầu implement Ownership/Borrowing cơ bản
 
 ### Dài hạn
-6. **Borrow Checker** — Ownership/Borrowing đầy đủ
-7. **Module system** — `mod`, `export`, `extern`
-8. **StringInterner** — upgrade `Identifier` từ `std::string` sang `InternID`
+6. **Module system** — `mod`, `export`, `extern`
+7. **StringInterner** — upgrade `Identifier` từ `std::string` sang `InternID`
 
 ---
 
-*File được cập nhật sau Phase 7 — Resolver subsystem hoàn thành.*
+*File được cập nhật sau khi hoàn thành MVP (đã compile ra executable code).*

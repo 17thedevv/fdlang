@@ -1,4 +1,5 @@
 #include "fdlang/MiddleEnd/Symbol/SymbolTable.h"
+#include "fdlang/MiddleEnd/SemanticAnalyzer.h"
 #include "fdlang/AST/ASTNode.h"
 #include "fdlang/AST/ExprNode.h"
 #include "fdlang/AST/StmtNode.h"
