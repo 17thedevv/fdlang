@@ -1,67 +1,196 @@
 #pragma once
-#include "ASTNode.h"
-#include "fdlang/FrontEnd/ASTVisitor.h"
-#include "fdlang/Core/Types.h"          // SymbolID, kInvalidSymbolID
-#include "fdlang/Core/FLType.h"         // FLType — annotated by TypeChecker
-#include <string_view>
+#include "fdlang/AST/ASTNode.h"
+#include "fdlang/Core/Types.h"
+#include "fdlang/Core/FLType.h"
+#include <vector>
 #include <memory>
+#include <string_view>
+#include <variant>
 
 namespace fl {
 
+class TypeNode;
+class ParamDeclNode;
+class StmtNode;
+class PatternNode;
+
 class ExprNode : public ASTNode {
 public:
-    // ── TypeChecker annotation ────────────────────────────────────────────────
-    // Set to FLType::Unknown by default (before TypeChecker runs).
-    // Filled in by TypeChecker pass on every expression node.
-    // Read by FLIRGenerator for code-generation decisions.
-    // BorrowChecker may also consult it for ownership rules on non-trivial types.
     FLType inferredType = FLType::Unknown;
 };
 
+enum class BinaryOp : uint8_t {
+    Add, Sub, Mul, Div, Mod,
+    Eq, Ne, Lt, Le, Gt, Ge,
+    LogicAnd, LogicOr,
+    BitAnd, BitOr, BitXor, LShift, RShift,
+    Range, RangeInc,
+};
 
-class NumberExpr : public ExprNode {
+enum class UnaryOp : uint8_t {
+    Neg, Not, BitNot, Deref, Ref, RefMut, PostInc, PostDec,
+};
+
+enum class AssignOp : uint8_t {
+    Assign, AddAssign, SubAssign, MulAssign, DivAssign, ModAssign,
+    BitAndAssign, BitOrAssign, BitXorAssign, LShiftAssign, RShiftAssign,
+};
+
+enum class LiteralKind : uint8_t {
+    Integer, Float, Bool, Char, Str, RawStr, Byte, ByteStr,
+};
+
+enum class LiteralSuffix : uint8_t {
+    None, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, F32, F64,
+};
+
+class LiteralExpr : public ExprNode {
 public:
-    std::string_view value;
-    explicit NumberExpr(std::string_view val) : value(val) {}
+    LiteralKind      kind;
+    LiteralSuffix    suffix = LiteralSuffix::None;
+    std::string_view rawText;
+    
+    std::variant<
+        uint64_t,
+        int64_t,
+        double,
+        char32_t,
+        std::string_view
+    > value;
 
-    void accept(ASTVisitor* visitor) override {
-        visitor->visit(this); // "Mời anh Visitor vào phòng NumberExpr"
-    }
+    void accept(ASTVisitor& v) override;
 };
 
 class IdentifierExpr : public ExprNode {
 public:
-    std::string_view name;
-
-    // ── Resolver annotation ──────────────────────────────────────────────
-    // Set to kInvalidSymbolID by the Parser.
-    // Filled in by the Resolver pass: connects this usage to its declaration.
-    // TypeChecker / BorrowChecker / IRGenerator read this to find the Symbol.
+    std::vector<std::string_view> segments;
     SymbolID symbolId = kInvalidSymbolID;
-
-    explicit IdentifierExpr(std::string_view n) : name(n) {}
-
-    void accept(ASTVisitor* visitor) override {
-        visitor->visit(this);
-    }
+    void accept(ASTVisitor& v) override;
 };
 
-    class BooleanExpr : public ExprNode {
-    public:
-     bool value;
-     explicit BooleanExpr(bool val) : value(val) {}
-     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
-    };
+class BinaryExpr : public ExprNode {
+public:
+    BinaryOp                  op;
+    std::unique_ptr<ExprNode> left;
+    std::unique_ptr<ExprNode> right;
+    void accept(ASTVisitor& v) override;
+};
 
-    class BinaryExpr : public ExprNode {
-    public:
-        std::unique_ptr<ExprNode> left;
-        std::string_view op; // Toán tử (+, -, *, /, ==, <...)
-        std::unique_ptr<ExprNode> right;
+class UnaryExpr : public ExprNode {
+public:
+    UnaryOp                   op;
+    std::unique_ptr<ExprNode> operand;
+    void accept(ASTVisitor& v) override;
+};
 
-     BinaryExpr(std::unique_ptr<ExprNode> left, std::string_view op, std::unique_ptr<ExprNode> right)
-        : left(std::move(left)), op(op), right(std::move(right)) {}
+class AssignExpr : public ExprNode {
+public:
+    AssignOp                  op;
+    std::unique_ptr<ExprNode> lvalue;
+    std::unique_ptr<ExprNode> value;
+    void accept(ASTVisitor& v) override;
+};
 
-     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
-    };
+struct CallArgNode {
+    SourceLocation            loc;
+    std::string_view          label;
+    std::unique_ptr<ExprNode> value;
+};
+
+class CallExpr : public ExprNode {
+public:
+    std::unique_ptr<ExprNode>              callee;
+    std::vector<std::unique_ptr<TypeNode>> genericArgs;
+    std::vector<CallArgNode>               args;
+    SymbolID resolvedFn = kInvalidSymbolID;
+    void accept(ASTVisitor& v) override;
+};
+
+class IndexExpr : public ExprNode {
+public:
+    std::unique_ptr<ExprNode> base;
+    std::unique_ptr<ExprNode> index;
+    void accept(ASTVisitor& v) override;
+};
+
+class MemberExpr : public ExprNode {
+public:
+    std::unique_ptr<ExprNode> object;
+    std::string_view          member;
+    SymbolID memberId = kInvalidSymbolID;
+    void accept(ASTVisitor& v) override;
+};
+
+class CastExpr : public ExprNode {
+public:
+    std::unique_ptr<ExprNode> expr;
+    std::unique_ptr<TypeNode> targetType;
+    void accept(ASTVisitor& v) override;
+};
+
+class ArrayLiteralExpr : public ExprNode {
+public:
+    std::vector<std::unique_ptr<ExprNode>> elements;
+    void accept(ASTVisitor& v) override;
+};
+
+class TupleLiteralExpr : public ExprNode {
+public:
+    std::vector<std::unique_ptr<ExprNode>> elements;
+    void accept(ASTVisitor& v) override;
+};
+
+struct FieldInitNode {
+    SourceLocation            loc;
+    std::string_view          name;
+    std::unique_ptr<ExprNode> value;
+};
+
+class StructInitExpr : public ExprNode {
+public:
+    std::vector<std::string_view> path;
+    SymbolID                      structId = kInvalidSymbolID;
+    std::vector<FieldInitNode>    fields;
+    void accept(ASTVisitor& v) override;
+};
+
+struct MatchArmNode {
+    SourceLocation               loc;
+    std::unique_ptr<PatternNode> pattern;
+    std::unique_ptr<StmtNode>    body;
+};
+
+class MatchExpr : public ExprNode {
+public:
+    std::unique_ptr<ExprNode>  subject;
+    std::vector<MatchArmNode>  arms;
+    void accept(ASTVisitor& v) override;
+};
+
+class LambdaExpr : public ExprNode {
+public:
+    std::vector<std::unique_ptr<ParamDeclNode>> params;
+    std::unique_ptr<TypeNode>                   returnType;
+    std::unique_ptr<StmtNode>                   body;
+    void accept(ASTVisitor& v) override;
+};
+
+class AwaitExpr : public ExprNode {
+public:
+    std::unique_ptr<ExprNode> expr;
+    void accept(ASTVisitor& v) override;
+};
+
+class SizeofExpr : public ExprNode {
+public:
+    std::unique_ptr<TypeNode> targetType;
+    void accept(ASTVisitor& v) override;
+};
+
+class AlignofExpr : public ExprNode {
+public:
+    std::unique_ptr<TypeNode> targetType;
+    void accept(ASTVisitor& v) override;
+};
+
 } // namespace fl

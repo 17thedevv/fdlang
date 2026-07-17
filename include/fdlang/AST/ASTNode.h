@@ -1,19 +1,21 @@
 #pragma once
-#include <memory>
-#include <vector>
+#include <cstdint>
 
 namespace fl {
-    class ASTNode {
-    public:
-        virtual ~ASTNode() = default;
-        virtual void accept(class ASTVisitor* visitor) = 0;
-    };
 
-    class StmtNode; // Forward declaration
+class ASTVisitor;
 
-    class ProgramNode : public ASTNode {
-    public:
-        std::vector<std::unique_ptr<StmtNode>> statements;
-        void accept(ASTVisitor* visitor) override;
-    };
-}
+struct SourceLocation {
+    uint32_t byteOffset = 0;
+};
+
+class ASTNode {
+public:
+    SourceLocation loc;
+    virtual ~ASTNode() = default;
+    virtual void accept(ASTVisitor& v) = 0;
+};
+
+class ItemNode : public ASTNode {};
+
+} // namespace fl

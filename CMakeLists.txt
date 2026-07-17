@@ -33,6 +33,9 @@ include_directories(include)
 # Gom Frontend sources (parser frozen — no changes)
 file(GLOB FRONTEND_SRC "src/FrontEnd/*.cpp")
 
+# Gom AST sources
+file(GLOB AST_SRC "src/AST/*.cpp")
+
 # MiddleEnd sources — explicit list to exclude deprecated SemanticAnalyzer.cpp
 set(MIDDLEEND_SRC
     src/MiddleEnd/SymbolTable.cpp
@@ -58,6 +61,7 @@ set(SUPPORT_SRC
 # Tạo file thực thi chính
 add_executable(fdlang
     src/main.cpp
+    ${AST_SRC}
     ${FRONTEND_SRC}
     ${MIDDLEEND_SRC}
     ${BACKEND_SRC}
@@ -74,6 +78,14 @@ add_library(fdlang_rt STATIC src/Runtime/runtime.c)
 # PHẦN 3: KIỂM THỬ (TESTING)
 # ==========================================
 enable_testing()
+
+# ── test_ast_manual ───────────────────────────────────────────────────────────
+add_executable(test_ast_manual
+    tests/test_ast_manual.cpp
+    ${AST_SRC}
+)
+target_include_directories(test_ast_manual PRIVATE include)
+add_test(NAME ASTManualTest COMMAND test_ast_manual)
 
 # ── test_lexer ────────────────────────────────────────────────────────────────
 add_executable(test_lexer
