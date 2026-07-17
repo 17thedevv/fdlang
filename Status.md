@@ -151,11 +151,11 @@ Source (.fl)
 ALL 12 TESTS PASSED ✅
 ```
 
-### FrontEnd (Phase trước)
+### FrontEnd (v1.0 Upgrade)
 | Module | Trạng thái |
 |--------|-----------|
-| Lexer | ✅ Hoàn chỉnh |
-| Parser | ✅ Hoàn chỉnh — **frozen** |
+| Lexer | ✅ **Hoàn chỉnh (v1.0)** — Hỗ trợ toàn bộ Grammar, Literals, Toán tử |
+| Parser | ⚠️ Chờ nâng cấp lên v1.0 |
 
 ### Documentation & Specification
 | File | Nội dung |
@@ -229,7 +229,7 @@ Tổng thể MVP                    ██████████   100% ✅
 ## 🗺️ Bước tiếp theo
 
 ### Ngắn hạn
-1. **Triển khai Lexer.cpp & Parser.cpp** — Cập nhật mã nguồn C++ để bám sát `grammar.md` v1.0.
+1. **Triển khai Parser.cpp** — Cập nhật mã nguồn C++ để xây dựng AST bám sát `grammar.md` v1.0.
 2. **Diagnostic Engine** — cải thiện xuất lỗi, thay `std::exit()`
 3. **Initialization checker** — chuyển logic từ SemanticAnalyzer cũ vào pass mới
 

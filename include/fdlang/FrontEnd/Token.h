@@ -7,7 +7,7 @@ namespace fl {
         END_OF_FILE,
         ERROR,
         
-        // operators
+        // --- Toán tử và Ký hiệu ---
         PLUS,                // +
         MINUS,               // -
         MULTIPLY,            // *
@@ -22,36 +22,98 @@ namespace fl {
         GREATER_THAN_EQUAL,  // >=
         NOT_EQUAL,           // !=
 
-        // --- CÁC DẤU CÂU CẤU TRÚC (Bắt buộc phải có theo Grammar) ---
+        PLUS_ASSIGN,         // +=
+        MINUS_ASSIGN,        // -=
+        STAR_ASSIGN,         // *=
+        SLASH_ASSIGN,        // /=
+        PERC_ASSIGN,         // %=
+        BIT_AND_ASSIGN,      // &=
+        BIT_OR_ASSIGN,       // |=
+        BIT_XOR_ASSIGN,      // ^=
+        LSHIFT_ASSIGN,       // <<=
+        RSHIFT_ASSIGN,       // >>=
+
+        LOGICAL_AND,         // &&
+        LOGICAL_OR,          // ||
+        BANG,                // !
+        
+        BIT_AND,             // &
+        BIT_OR,              // |
+        BIT_XOR,             // ^
+        BIT_NOT,             // ~
+        LSHIFT,              // <<
+        RSHIFT,              // >>
+
+        ARROW,               // ->
+        PLUS_PLUS,           // ++
+        MINUS_MINUS,         // --
+        DOT_DOT,             // ..
+        DOT_DOT_EQ,          // ..=
+        DOT_DOT_DOT,         // ...
+        AT_BRACKET,          // @[
+        GENERIC_START,       // @<
+        QUESTION,            // ?
+
+        // --- Các dấu câu cấu trúc ---
         COLON,               // :
-        COLON_COLON,         // :: (Rất quan trọng cho tính năng mod)
+        COLON_COLON,         // ::
         SEMI,                // ;
         COMMA,               // ,
+        DOT,                 // .
         L_PAREN,             // (
         R_PAREN,             // )
         L_BRACE,             // {
         R_BRACE,             // }
+        L_BRACKET,           // [
+        R_BRACKET,           // ]
 
-        // literals
+        // --- Literals ---
         IDENTIFIER,
-        NUMBER,
-        STRING,
+        INTEGER_LITERAL,
+        FLOAT_LITERAL,
+        CHAR_LITERAL,
+        STRING_LITERAL,
+        RAW_STRING_LITERAL,
+        BYTE_LITERAL,
+        BYTE_STRING_LITERAL,
 
-        // keywords
-        KW_DEC,     // dec 
-        KW_FN,      // fn   
-        KW_IF,      // if   
-        KW_ELSE,    // else   
-        KW_RETURN,  // return
-        KW_EXPORT,  // export
-        KW_EXTERN,  // extern
-        KW_CONST,   // const
-        KW_MOD,     // mod
-        KW_TRUE,    // true  
-        KW_FALSE,    // false
-        // --- NHÓM MỚI: Từ khóa điều khiển ---
+        // --- Keywords ---
+        KW_DEC,
+        KW_CONST,
+        KW_FN,
+        KW_RETURN,
+        KW_IF,
+        KW_ELSE,
         KW_WHILE,
-        KW_PRINT,   
+        KW_FOR,
+        KW_IN,
+        KW_BREAK,
+        KW_CONTINUE,
+        KW_MOD,
+        KW_EXPORT,
+        KW_EXTERN,
+        KW_STRUCT,
+        KW_ENUM,
+        KW_TRAIT,
+        KW_IMPL,
+        KW_UNSAFE,
+        KW_USE,
+        KW_AS,
+        KW_MATCH,
+        KW_RW,
+        KW_TRUE,
+        KW_FALSE,
+        KW_TYPE,
+        KW_SIZEOF,
+        KW_ALIGNOF,
+        KW_AWAIT,
+        KW_ASYNC,
+        KW_COMPTIME,
+        KW_DYN,
+        KW_SELF_VAL, // self
+        KW_SELF_TYP, // Self
+        
+        KW_PRINT, // Giữ lại cho testing hiện tại
     };
 
     class Token {

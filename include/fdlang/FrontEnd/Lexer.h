@@ -6,12 +6,13 @@ namespace fl {
 
 class Lexer {
 private:
-    std::string_view source; // Nhìn vào mã nguồn gốc
-    uint32_t position;       // Con trỏ byteOffset hiện tại
+    std::string_view source; 
+    uint32_t position;       
 
     // --- Các hàm công cụ thao tác con trỏ ---
     char peek() const;
     char peekNext() const;
+    char peekNextNext() const;
     char advance();
     bool isAtEnd() const;
     bool match(char expected);
@@ -25,8 +26,9 @@ private:
 
     // --- Rẽ nhánh xử lý ---
     Token identifierOrKeyword();
-    Token number();
-    Token string();
+    Token numberLiteral();
+    Token charLiteral(bool isByte);
+    Token stringLiteral(bool isRaw, bool isByte);
 
 public:
     explicit Lexer(std::string_view sourceCode);
