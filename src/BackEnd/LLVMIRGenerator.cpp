@@ -9,18 +9,18 @@ namespace fl {
 LLVMIRGenerator::LLVMIRGenerator(llvm::LLVMContext& context, llvm::Module& module, const SymbolTable& symTable)
     : context_(context), module_(module), builder_(context), symTable_(symTable) {}
 
-bool LLVMIRGenerator::generate(const flir::Module* flirModule) {
+bool LLVMIRGenerator::generate(const mvir::Module* mvirModule) {
     globalValues_.clear(); localValues_.clear(); pointerTypes_.clear();
     structTypes_.clear(); blocks_.clear();
 
     // 1. Declare Struct types (opaque first)
-    for (const auto& tDecl : flirModule->typeDecls) {
+    for (const auto& tDecl : mvirModule->typeDecls) {
         std::string structName = tDecl.name.substr(1);
         llvm::StructType* st = llvm::StructType::create(context_, structName);
         structTypes_[structName] = st;
     }
     // Set bodies for Struct types
-    for (const auto& tDecl : flirModule->typeDecls) {
+    for (const auto& tDecl : mvirModule->typeDecls) {
         std::string structName = tDecl.name.substr(1);
         llvm::StructType* st = structTypes_[structName];
         std::vector<llvm::Type*> fields;
@@ -31,7 +31,7 @@ bool LLVMIRGenerator::generate(const flir::Module* flirModule) {
     }
 
     // Pass 1: Declare all functions
-    for (const auto& eFunc : flirModule->externFunctions) {
+    for (const auto& eFunc : mvirModule->externFunctions) {
         std::string funcName = eFunc.name.name.substr(1); // strip '@'
         std::vector<llvm::Type*> paramTypes;
         for (const auto& pType : eFunc.paramTypes) {
@@ -41,7 +41,7 @@ bool LLVMIRGenerator::generate(const flir::Module* flirModule) {
         llvm::Function::Create(fType, llvm::Function::ExternalLinkage, funcName, module_);
     }
 
-    for (const auto& func : flirModule->functions) {
+    for (const auto& func : mvirModule->functions) {
         std::string funcName = func->name.name.substr(1);
         std::vector<llvm::Type*> paramTypes;
         for (const auto& param : func->params) {
@@ -52,7 +52,7 @@ bool LLVMIRGenerator::generate(const flir::Module* flirModule) {
     }
 
     // 1.5 Global string literals
-    for (const auto& gDecl : flirModule->globalDecls) {
+    for (const auto& gDecl : mvirModule->globalDecls) {
         std::string name = gDecl.name.name.substr(1);
         if (!gDecl.stringLiteral.empty()) {
             llvm::Constant* strConst = llvm::ConstantDataArray::getString(context_, gDecl.stringLiteral, true);
@@ -65,7 +65,7 @@ bool LLVMIRGenerator::generate(const flir::Module* flirModule) {
     }
 
     // Pass 2: Translate instructions
-    for (const auto& func : flirModule->functions) {
+    for (const auto& func : mvirModule->functions) {
         createFunctionStructure(func.get());
         emitFunctionBody(func.get());
     }
@@ -117,15 +117,15 @@ llvm::Type* LLVMIRGenerator::mapType(const Type* type) {
     return llvm::Type::getVoidTy(context_);
 }
 
-llvm::Value* LLVMIRGenerator::mapOperand(const flir::Operand& op) {
-    if (std::holds_alternative<flir::LocalId>(op)) {
-        const auto& local = std::get<flir::LocalId>(op);
+llvm::Value* LLVMIRGenerator::mapOperand(const mvir::Operand& op) {
+    if (std::holds_alternative<mvir::LocalId>(op)) {
+        const auto& local = std::get<mvir::LocalId>(op);
         auto it = localValues_.find(local.name);
         if (it != localValues_.end()) return it->second;
         assert(false && "LocalId not found in environment");
         return nullptr;
-    } else if (std::holds_alternative<flir::GlobalId>(op)) {
-        const auto& global = std::get<flir::GlobalId>(op);
+    } else if (std::holds_alternative<mvir::GlobalId>(op)) {
+        const auto& global = std::get<mvir::GlobalId>(op);
         auto it = globalValues_.find(global.name);
         if (it != globalValues_.end()) return it->second;
         
@@ -135,11 +135,11 @@ llvm::Value* LLVMIRGenerator::mapOperand(const flir::Operand& op) {
         
         assert(false && "Global function/value not found");
         return nullptr;
-    } else if (std::holds_alternative<flir::Number>(op)) {
-        const auto& num = std::get<flir::Number>(op);
+    } else if (std::holds_alternative<mvir::Number>(op)) {
+        const auto& num = std::get<mvir::Number>(op);
         return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), std::stoull(num.value), 10);
-    } else if (std::holds_alternative<flir::Boolean>(op)) {
-        const auto& b = std::get<flir::Boolean>(op);
+    } else if (std::holds_alternative<mvir::Boolean>(op)) {
+        const auto& b = std::get<mvir::Boolean>(op);
         return llvm::ConstantInt::get(llvm::Type::getInt1Ty(context_), b.value ? 1 : 0);
     }
     assert(false && "Unknown operand type");
@@ -156,7 +156,7 @@ llvm::FunctionCallee LLVMIRGenerator::getOrDeclarePrint() {
     return f;
 }
 
-void LLVMIRGenerator::createFunctionStructure(const flir::Function* func) {
+void LLVMIRGenerator::createFunctionStructure(const mvir::Function* func) {
     localValues_.clear();
     blocks_.clear();
     pointerTypes_.clear();
@@ -177,7 +177,7 @@ void LLVMIRGenerator::createFunctionStructure(const flir::Function* func) {
     }
 }
 
-void LLVMIRGenerator::emitFunctionBody(const flir::Function* func) {
+void LLVMIRGenerator::emitFunctionBody(const mvir::Function* func) {
     for (const auto& block : func->blocks) {
         llvm::BasicBlock* bb = blocks_[block->label.name];
         builder_.SetInsertPoint(bb); llvm::errs() << "Emitting for block " << block->label.name << " in function " << func->name.name << "\n";
@@ -194,16 +194,16 @@ void LLVMIRGenerator::emitFunctionBody(const flir::Function* func) {
     }
 }
 
-void LLVMIRGenerator::emitInstruction(const flir::Instruction* inst) {
-    if (auto* alloc = dynamic_cast<const flir::AllocaInst*>(inst)) {
+void LLVMIRGenerator::emitInstruction(const mvir::Instruction* inst) {
+    if (auto* alloc = dynamic_cast<const mvir::AllocaInst*>(inst)) {
         llvm::Type* ty = mapType(alloc->type);
         llvm::Value* val = builder_.CreateAlloca(ty, nullptr, alloc->dest.name.substr(1));
         localValues_[alloc->dest.name] = val;
         pointerTypes_[alloc->dest.name] = ty;
     }
-    else if (auto* load = dynamic_cast<const flir::LoadInst*>(inst)) {
+    else if (auto* load = dynamic_cast<const mvir::LoadInst*>(inst)) {
         llvm::Value* ptr = mapOperand(load->ptr);
-        std::string ptrName = std::get<flir::LocalId>(load->ptr).name;
+        std::string ptrName = std::get<mvir::LocalId>(load->ptr).name;
         llvm::Type* pointeeTy = nullptr;
         if (pointerTypes_.count(ptrName)) {
             pointeeTy = pointerTypes_[ptrName];
@@ -214,15 +214,15 @@ void LLVMIRGenerator::emitInstruction(const flir::Instruction* inst) {
         llvm::Value* val = builder_.CreateLoad(pointeeTy, ptr, load->dest.name.substr(1));
         localValues_[load->dest.name] = val;
     }
-    else if (auto* store = dynamic_cast<const flir::StoreInst*>(inst)) {
+    else if (auto* store = dynamic_cast<const mvir::StoreInst*>(inst)) {
         llvm::Value* val = mapOperand(store->value);
         llvm::Value* ptr = mapOperand(store->ptr);
         builder_.CreateStore(val, ptr);
     }
-    else if (auto* getptr = dynamic_cast<const flir::GetPtrInst*>(inst)) {
+    else if (auto* getptr = dynamic_cast<const mvir::GetPtrInst*>(inst)) {
         llvm::Value* ptr = mapOperand(getptr->base);
         
-        std::string ptrName = std::get<flir::LocalId>(getptr->base).name;
+        std::string ptrName = std::get<mvir::LocalId>(getptr->base).name;
         llvm::Type* pointeeTy = nullptr;
         if (pointerTypes_.count(ptrName)) {
             pointeeTy = pointerTypes_[ptrName];
@@ -248,37 +248,37 @@ void LLVMIRGenerator::emitInstruction(const flir::Instruction* inst) {
             }
         }
     }
-    else if (auto* castinst = dynamic_cast<const flir::CastInst*>(inst)) {
+    else if (auto* castinst = dynamic_cast<const mvir::CastInst*>(inst)) {
         llvm::Value* val = mapOperand(castinst->value);
         llvm::Value* res = builder_.CreateBitCast(val, mapType(castinst->targetType), castinst->dest.name.substr(1));
         localValues_[castinst->dest.name] = res;
     }
-    else if (auto* alu = dynamic_cast<const flir::AluInst*>(inst)) {
+    else if (auto* alu = dynamic_cast<const mvir::AluInst*>(inst)) {
         llvm::Value* left = mapOperand(alu->left);
         llvm::Value* right = mapOperand(alu->right);
         llvm::Value* res = nullptr;
         
         switch (alu->op) {
-            case flir::AluOp::Add: res = builder_.CreateAdd(left, right); break;
-            case flir::AluOp::Sub: res = builder_.CreateSub(left, right); break;
-            case flir::AluOp::Mul: res = builder_.CreateMul(left, right); break;
-            case flir::AluOp::Div: res = builder_.CreateSDiv(left, right); break;
-            case flir::AluOp::Eq:  res = builder_.CreateICmpEQ(left, right); break;
-            case flir::AluOp::Ne:  res = builder_.CreateICmpNE(left, right); break;
-            case flir::AluOp::Lt:  res = builder_.CreateICmpSLT(left, right); break;
-            case flir::AluOp::Le:  res = builder_.CreateICmpSLE(left, right); break;
-            case flir::AluOp::Gt:  res = builder_.CreateICmpSGT(left, right); break;
-            case flir::AluOp::Ge:  res = builder_.CreateICmpSGE(left, right); break;
+            case mvir::AluOp::Add: res = builder_.CreateAdd(left, right); break;
+            case mvir::AluOp::Sub: res = builder_.CreateSub(left, right); break;
+            case mvir::AluOp::Mul: res = builder_.CreateMul(left, right); break;
+            case mvir::AluOp::Div: res = builder_.CreateSDiv(left, right); break;
+            case mvir::AluOp::Eq:  res = builder_.CreateICmpEQ(left, right); break;
+            case mvir::AluOp::Ne:  res = builder_.CreateICmpNE(left, right); break;
+            case mvir::AluOp::Lt:  res = builder_.CreateICmpSLT(left, right); break;
+            case mvir::AluOp::Le:  res = builder_.CreateICmpSLE(left, right); break;
+            case mvir::AluOp::Gt:  res = builder_.CreateICmpSGT(left, right); break;
+            case mvir::AluOp::Ge:  res = builder_.CreateICmpSGE(left, right); break;
         }
         res->setName(alu->dest.name.substr(1));
         localValues_[alu->dest.name] = res;
     }
-    else if (auto* call = dynamic_cast<const flir::CallInst*>(inst)) {
+    else if (auto* call = dynamic_cast<const mvir::CallInst*>(inst)) {
         llvm::FunctionCallee fcallee;
-        if (std::holds_alternative<flir::GlobalId>(call->func) && std::get<flir::GlobalId>(call->func).name == "@print") {
+        if (std::holds_alternative<mvir::GlobalId>(call->func) && std::get<mvir::GlobalId>(call->func).name == "@print") {
             fcallee = getOrDeclarePrint();
         } else {
-            fcallee = module_.getFunction(std::get<flir::GlobalId>(call->func).name.substr(1));
+            fcallee = module_.getFunction(std::get<mvir::GlobalId>(call->func).name.substr(1));
             assert(fcallee && "Function not found");
         }
         
@@ -295,18 +295,18 @@ void LLVMIRGenerator::emitInstruction(const flir::Instruction* inst) {
     }
 }
 
-void LLVMIRGenerator::emitTerminator(const flir::Terminator* term) {
-    if (auto* jump = dynamic_cast<const flir::JumpTerm*>(term)) {
+void LLVMIRGenerator::emitTerminator(const mvir::Terminator* term) {
+    if (auto* jump = dynamic_cast<const mvir::JumpTerm*>(term)) {
         llvm::BasicBlock* target = blocks_[jump->target.name];
         builder_.CreateBr(target);
     }
-    else if (auto* branch = dynamic_cast<const flir::BranchTerm*>(term)) {
+    else if (auto* branch = dynamic_cast<const mvir::BranchTerm*>(term)) {
         llvm::Value* cond = mapOperand(branch->condition);
         llvm::BasicBlock* trueBB = blocks_[branch->trueTarget.name];
         llvm::BasicBlock* falseBB = blocks_[branch->falseTarget.name];
         builder_.CreateCondBr(cond, trueBB, falseBB);
     }
-    else if (auto* ret = dynamic_cast<const flir::RetTerm*>(term)) {
+    else if (auto* ret = dynamic_cast<const mvir::RetTerm*>(term)) {
         if (ret->value) {
             llvm::Value* val = mapOperand(*(ret->value));
             builder_.CreateRet(val);

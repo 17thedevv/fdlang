@@ -12,7 +12,7 @@
 #include "mellis/MiddleEnd/SymbolTable.h"
 #include "mellis/MiddleEnd/Resolver.h"
 #include "mellis/MiddleEnd/TypeChecker.h"
-#include "mellis/MiddleEnd/FLIRGenerator.h"
+#include "mellis/MiddleEnd/MVIRGenerator.h"
 #include "mellis/MiddleEnd/BorrowChecker.h"
 #include "mellis/Support/Diagnostic.h"
 
@@ -35,8 +35,8 @@ bool runBorrowChecker(const std::string& source, std::string& errorOutput) {
     tc.check(ast.get());
     diag.flush();
 
-    FLIRGenerator flirGen(table, tc);
-    auto module = flirGen.generate(*ast);
+    MVIRGenerator mvirGen(table, tc);
+    auto module = mvirGen.generate(*ast);
     
     BorrowChecker bc(module.get(), diag);
     bool ok = bc.check();

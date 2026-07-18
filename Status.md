@@ -34,7 +34,7 @@ Source (.fl)
     ↓
     Borrow Checker     ✅ hoàn chỉnh — Scope-based, Ownership, Aliasing
     ↓
-    FLIR Generator     ✅ hoàn chỉnh
+    MVIR Generator     ✅ hoàn chỉnh
 
 [Phase 3 — BackEnd]
     LLVM IR Generator  ✅ hoàn chỉnh
@@ -80,8 +80,8 @@ mellis/
 │   │   ├── SymbolTable.h      Arena-based symbol registry
 │   │   ├── Resolver.h
 │   │   ├── TypeChecker.h
-│   │   ├── FLIR.h             FLIR instruction set
-│   │   └── FLIRGenerator.h
+│   │   ├── MVIR.h             MVIR instruction set
+│   │   └── MVIRGenerator.h
 │   ├── BackEnd/
 │   │   ├── LLVMIRGenerator.h
 │   │   └── ExecutableGenerator.h
@@ -95,8 +95,8 @@ mellis/
 │   │   ├── SymbolTable.cpp
 │   │   ├── Resolver.cpp
 │   │   ├── TypeChecker.cpp    ✅ hoàn chỉnh
-│   │   ├── FLIR.cpp
-│   │   ├── FLIRGenerator.cpp
+│   │   ├── MVIR.cpp
+│   │   ├── MVIRGenerator.cpp
 │   │   └── SemanticAnalyzer.cpp  [DEPRECATED — excluded khỏi build, chờ xóa]
 │   ├── BackEnd/
 │   │   ├── LLVMIRGenerator.cpp
@@ -109,7 +109,7 @@ mellis/
 │   ├── test_parser.cpp
 │   ├── test_resolver.cpp       12 test cases ✅
 │   ├── test_typechecker.cpp    6 test cases ✅
-│   ├── test_flir_generator.cpp
+│   ├── test_mvir_generator.cpp
 │   ├── test_llvmir_generator.cpp
 │   ├── test_executable_generator.cpp
 │   ├── test_ast_manual.cpp
@@ -118,7 +118,7 @@ mellis/
 ├── docs/
 │   ├── grammar.md              ✅ v1.0 Frozen
 │   ├── architecture.md
-│   ├── FLIR.MD
+│   ├── MVIR.MD
 │   ├── RoadMap.md
 │   ├── VISION.MD
 │   └── ast.md
@@ -149,14 +149,14 @@ mellis/
 | **TypeChecker — ConstraintGenerator** | ✅ Hoàn chỉnh | Sinh Equality & Field constraints, không unify trực tiếp |
 | **TypeChecker — UnificationEngine** | ✅ Hoàn chỉnh | Union-Find trên InferenceVarType, giải Field constraint qua StructDecl |
 | **TypeChecker — TypeResolver** | ✅ Hoàn chỉnh | Deep-resolve InferenceVar, emit lỗi nếu còn biến chưa rõ kiểu |
-| **FLIR** | ✅ Hoàn chỉnh | FLIR instruction set, specification |
-| **FLIRGenerator** | ✅ Hoàn chỉnh | Lowering AST → FLIR |
+| **MVIR** | ✅ Hoàn chỉnh | MVIR instruction set, specification |
+| **MVIRGenerator** | ✅ Hoàn chỉnh | Lowering AST → MVIR |
 
 ### Phase 3 — BackEnd
 
 | Module | Trạng thái | Ghi chú |
 |--------|-----------|---------|
-| **LLVMIRGenerator** | ✅ Hoàn chỉnh | FLIR → LLVM IR |
+| **LLVMIRGenerator** | ✅ Hoàn chỉnh | MVIR → LLVM IR |
 | **ExecutableGenerator** | ✅ Hoàn chỉnh | LLVM IR → native executable, linker abstraction |
 
 ### Specification & Documentation
@@ -164,7 +164,7 @@ mellis/
 | File | Trạng thái |
 |------|-----------|
 | `grammar.md` | ✅ v1.0 Frozen — EBNF đầy đủ, Generics, Traits, Comptime |
-| `FLIR.MD` | ✅ Specification hoàn chỉnh |
+| `MVIR.MD` | ✅ Specification hoàn chỉnh |
 | `architecture.md` | ✅ Pipeline design |
 | `VISION.MD` | ✅ |
 
@@ -176,7 +176,7 @@ mellis/
 | `test_parser` | ✅ |
 | `test_resolver` | ✅ 12/12 passed |
 | `test_typechecker` | ✅ 6/6 passed |
-| `test_flir_generator` | ✅ |
+| `test_mvir_generator` | ✅ |
 | `test_llvmir_generator` | ✅ |
 | `test_executable_generator` | ✅ |
 
@@ -211,7 +211,7 @@ mellis/
 | 1 | **`SourceLocation` chưa có line/col thực** — Lexer chưa điền, mọi `loc.line == 0`. Lỗi diagnostic hiện không chỉ đúng vị trí. | 🔴 Cao |
 | 2 | **`SemanticAnalyzer.cpp` deprecated** — Excluded khỏi build nhưng chưa xóa khỏi repo. | 🟡 Trung bình |
 | 3 | **`README.MD`** — Cần viết hướng dẫn build và sử dụng cho v1.0. | 🟡 Trung bình |
-| 4 | **Unused Variables** — TypeChecker chưa báo lỗi biến không dùng → FLIRGenerator sinh `%id = alloca void`. | 🟡 Trung bình |
+| 4 | **Unused Variables** — TypeChecker chưa báo lỗi biến không dùng → MVIRGenerator sinh `%id = alloca void`. | 🟡 Trung bình |
 | 5 | **LLVM Build Mode Mismatch** — LLVM Release (`/MD`) vs mellis Debug (`/MDd`) → link error `_ITERATOR_DEBUG_LEVEL`. Tạm thời build mellis ở Release. | 🟡 Trung bình |
 | 6 | **Transparent lookup C++17/MSVC** — `unordered_map::find(string_view)` cần explicit `Identifier key(name)`. Fix dài hạn: nâng C++20. | 🟢 Thấp |
 
@@ -231,7 +231,7 @@ Phase 2 — TypeChecker Generics  ██░░░░░░░░   20% 🔄
 Phase 2 — TypeChecker Traits    ██░░░░░░░░   20% 🔄
 Phase 2 — Borrow Checker        ██████████  100% ✅
 
-Phase 2 — FLIR Generator        ██████████  100% ✅
+Phase 2 — MVIR Generator        ██████████  100% ✅
 Phase 3 — LLVM IR Generator     ██████████  100% ✅
 Phase 3 — Executable Gen        ██████████  100% ✅
 

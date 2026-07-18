@@ -55,7 +55,7 @@ Borrow Checker
         ▼
 Lifetime Analyzer
         ▼
-FLIR Generator
+MVIR Generator
         ▼
 Optimizer
 

@@ -17,7 +17,7 @@ bool BorrowChecker::check() {
     return ok;
 }
 
-void BorrowChecker::checkFunction(const flir::Function& func) {
+void BorrowChecker::checkFunction(const mvir::Function& func) {
     scopeStack_.push_back({}); // global scope for function
     for (const auto& block : func.blocks) {
         checkBlock(*block);
@@ -25,14 +25,14 @@ void BorrowChecker::checkFunction(const flir::Function& func) {
     scopeStack_.pop_back();
 }
 
-void BorrowChecker::checkBlock(const flir::BasicBlock& block) {
+void BorrowChecker::checkBlock(const mvir::BasicBlock& block) {
     for (const auto& inst : block.instructions) {
         checkInstruction(*inst);
     }
 }
 
-Place BorrowChecker::resolvePlace(const flir::Operand& op) const {
-    if (auto* locId = std::get_if<flir::LocalId>(&op)) {
+Place BorrowChecker::resolvePlace(const mvir::Operand& op) const {
+    if (auto* locId = std::get_if<mvir::LocalId>(&op)) {
         auto it = placeMap_.find(locId->name);
         if (it != placeMap_.end()) {
             return it->second;
@@ -41,29 +41,29 @@ Place BorrowChecker::resolvePlace(const flir::Operand& op) const {
     return Place(op);
 }
 
-void BorrowChecker::checkInstruction(const flir::Instruction& inst) {
+void BorrowChecker::checkInstruction(const mvir::Instruction& inst) {
     // Basic intra-procedural dataflow for borrow checker.
-    SourceLocation fakeLoc{0, 0, 0}; // TODO: Pass source location in FLIR if possible
+    SourceLocation fakeLoc{0, 0, 0}; // TODO: Pass source location in MVIR if possible
 
-    if (auto* getPtr = dynamic_cast<const flir::GetPtrInst*>(&inst)) {
+    if (auto* getPtr = dynamic_cast<const mvir::GetPtrInst*>(&inst)) {
         Place basePlace = resolvePlace(getPtr->base);
         // Append projection
         std::string offsetStr = "idx";
         if (!getPtr->offsets.empty()) {
-            offsetStr = flir::toString(getPtr->offsets[0]);
+            offsetStr = mvir::toString(getPtr->offsets[0]);
         }
         basePlace.projections.push_back(Projection{ProjectionKind::Index, offsetStr});
         placeMap_[getPtr->dest.name] = basePlace;
     } 
-    else if (dynamic_cast<const flir::BeginScopeInst*>(&inst)) {
+    else if (dynamic_cast<const mvir::BeginScopeInst*>(&inst)) {
         scopeStack_.push_back({});
     }
-    else if (dynamic_cast<const flir::EndScopeInst*>(&inst)) {
+    else if (dynamic_cast<const mvir::EndScopeInst*>(&inst)) {
         if (!scopeStack_.empty()) {
             scopeStack_.pop_back();
         }
     }
-    else if (auto* borrow = dynamic_cast<const flir::BorrowInst*>(&inst)) {
+    else if (auto* borrow = dynamic_cast<const mvir::BorrowInst*>(&inst)) {
         Place basePlace = resolvePlace(borrow->base);
         issueLoan(basePlace, borrow->isMutable, fakeLoc);
         // The destination register represents the borrowed reference.
@@ -73,11 +73,11 @@ void BorrowChecker::checkInstruction(const flir::Instruction& inst) {
         derefPlace.projections.push_back(Projection{ProjectionKind::Deref, ""});
         placeMap_[borrow->dest.name] = derefPlace;
     }
-    else if (auto* load = dynamic_cast<const flir::LoadInst*>(&inst)) {
+    else if (auto* load = dynamic_cast<const mvir::LoadInst*>(&inst)) {
         Place srcPlace = resolvePlace(load->ptr);
         checkAccess(srcPlace, false /* isMut */, fakeLoc);
     }
-    else if (auto* store = dynamic_cast<const flir::StoreInst*>(&inst)) {
+    else if (auto* store = dynamic_cast<const mvir::StoreInst*>(&inst)) {
         Place destPlace = resolvePlace(store->ptr);
         checkAccess(destPlace, true /* isMut */, fakeLoc);
     }

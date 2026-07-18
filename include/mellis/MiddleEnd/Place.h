@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 #include <variant>
-#include "mellis/MiddleEnd/FLIR.h"
+#include "mellis/MiddleEnd/MVIR.h"
 
 namespace fl {
 
@@ -27,12 +27,12 @@ struct Projection {
 /// A Place represents a memory location (e.g. `x`, `x.f`, `arr[0]`, `*ptr`)
 class Place {
 public:
-    flir::Operand base;
+    mvir::Operand base;
     std::vector<Projection> projections;
 
     Place() = default;
-    Place(flir::Operand base) : base(base) {}
-    Place(flir::Operand base, std::vector<Projection> projs) : base(base), projections(std::move(projs)) {}
+    Place(mvir::Operand base) : base(base) {}
+    Place(mvir::Operand base, std::vector<Projection> projs) : base(base), projections(std::move(projs)) {}
 
     bool operator==(const Place& other) const {
         if (!(base == other.base)) return false;
@@ -62,7 +62,7 @@ public:
     }
 
     std::string toString() const {
-        std::string res = flir::toString(base);
+        std::string res = mvir::toString(base);
         for (const auto& p : projections) {
             if (p.kind == ProjectionKind::Field) {
                 res += "." + p.fieldName;

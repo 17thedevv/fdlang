@@ -1,10 +1,10 @@
 // =============================================================================
 // mellis/BackEnd/LLVMIRGenerator.h
 //
-// LLVMIRGenerator — Lowering pass from FLIR to LLVM IR.
+// LLVMIRGenerator — Lowering pass from MVIR to LLVM IR.
 //
 // Responsibilities:
-//   - Consume a flir::Module and produce a well-formed llvm::Module.
+//   - Consume a mvir::Module and produce a well-formed llvm::Module.
 //   - Pure translation: maps types, operands, and instructions 1:1.
 //
 // Constraints:
@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "mellis/MiddleEnd/FLIR.h"
+#include "mellis/MiddleEnd/MVIR.h"
 #include "mellis/MiddleEnd/SymbolTable.h"
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -31,10 +31,10 @@ class LLVMIRGenerator {
 public:
     explicit LLVMIRGenerator(llvm::LLVMContext& context, llvm::Module& module, const SymbolTable& symTable);
 
-    /// Generate LLVM IR from the given FLIR module.
+    /// Generate LLVM IR from the given MVIR module.
     ///
     /// @return true if generation succeeded and passed verification.
-    bool generate(const flir::Module* flirModule);
+    bool generate(const mvir::Module* mvirModule);
 
 private:
     llvm::LLVMContext& context_;
@@ -44,31 +44,31 @@ private:
 
     // ── Environments ─────────────────────────────────────────────────────────
     
-    // Maps FLIR LocalId ("%0") to the allocated LLVM Value.
+    // Maps MVIR LocalId ("%0") to the allocated LLVM Value.
     std::unordered_map<std::string, llvm::Value*> globalValues_;
     std::unordered_map<std::string, llvm::Value*> localValues_;
     
-    // Maps FLIR LocalId to its allocated LLVM Type (needed for LLVM 15+ opaque pointers)
+    // Maps MVIR LocalId to its allocated LLVM Type (needed for LLVM 15+ opaque pointers)
     std::unordered_map<std::string, llvm::Type*> pointerTypes_;
     
     // Maps Struct name ("Foo") to the LLVM StructType.
     std::unordered_map<std::string, llvm::StructType*> structTypes_;
     
-    // Maps FLIR LabelId ("bb0") to the LLVM BasicBlock.
+    // Maps MVIR LabelId ("bb0") to the LLVM BasicBlock.
     std::unordered_map<std::string, llvm::BasicBlock*> blocks_;
 
     // ── Translation Helpers ──────────────────────────────────────────────────
 
     llvm::Type* mapType(const Type* type);
-    llvm::Value* mapOperand(const flir::Operand& op);
+    llvm::Value* mapOperand(const mvir::Operand& op);
     
     // Pass 1: Declare functions and blocks
-    void createFunctionStructure(const flir::Function* func);
+    void createFunctionStructure(const mvir::Function* func);
     
     // Pass 2: Emit instructions
-    void emitFunctionBody(const flir::Function* func);
-    void emitInstruction(const flir::Instruction* inst);
-    void emitTerminator(const flir::Terminator* term);
+    void emitFunctionBody(const mvir::Function* func);
+    void emitInstruction(const mvir::Instruction* inst);
+    void emitTerminator(const mvir::Terminator* term);
     
     // External declarations
     llvm::FunctionCallee getOrDeclarePrint();

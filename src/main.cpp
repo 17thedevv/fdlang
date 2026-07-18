@@ -10,7 +10,7 @@
 #include "mellis/MiddleEnd/Resolver.h"
 #include "mellis/MiddleEnd/TypeChecker.h"
 #include "mellis/MiddleEnd/MatchAnalyzer.h"
-#include "mellis/MiddleEnd/FLIRGenerator.h"
+#include "mellis/MiddleEnd/MVIRGenerator.h"
 #include "mellis/MiddleEnd/MonomorphizationEngine.h"
 #include "mellis/MiddleEnd/BorrowChecker.h"
 #include "mellis/BackEnd/LLVMIRGenerator.h"
@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
     bool resolveOk = resolver.resolve(ast.get());
 
     if (!resolveOk) {
-        diag.error(SourceLocation::invalid(), "Resolver that bai, nhung tiep tuc de test FLIR...");
+        diag.error(SourceLocation::invalid(), "Resolver that bai, nhung tiep tuc de test MVIR...");
         diag.flush();
         // return 65;
     }
@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) {
     bool tcOk = typeChecker.check(ast.get());
 
     if (!tcOk) {
-        diag.error(SourceLocation::invalid(), "TypeChecker that bai, nhung tiep tuc de test FLIR...");
+        diag.error(SourceLocation::invalid(), "TypeChecker that bai, nhung tiep tuc de test MVIR...");
         diag.flush();
         // return 65;
     }
@@ -109,30 +109,30 @@ int main(int argc, char* argv[]) {
     MatchAnalyzer matchAnalyzer(symbolTable, diag);
     bool matchOk = matchAnalyzer.analyze(ast.get());
     if (!matchOk) {
-        diag.error(SourceLocation::invalid(), "MatchAnalyzer that bai, nhung tiep tuc de test FLIR...");
+        diag.error(SourceLocation::invalid(), "MatchAnalyzer that bai, nhung tiep tuc de test MVIR...");
         diag.flush();
         // return 65;
     }
     std::cout << "[6.2] MatchAnalyzer thanh cong!" << std::endl;
 
-    // ── Phase 6: FLIR Generation ──────────────────────────────────────────────
-    std::cout << "[7] Sinh FLIR (FLIRGenerator)..." << std::endl;
-    FLIRGenerator flirGen(symbolTable, typeChecker);
-    auto flirModule = flirGen.generate(*prog);
-    if (!flirModule) {
-        diag.error(SourceLocation::invalid(), "Khong the sinh FLIR.");
+    // ── Phase 6: MVIR Generation ──────────────────────────────────────────────
+    std::cout << "[7] Sinh MVIR (MVIRGenerator)..." << std::endl;
+    MVIRGenerator mvirGen(symbolTable, typeChecker);
+    auto mvirModule = mvirGen.generate(*prog);
+    if (!mvirModule) {
+        diag.error(SourceLocation::invalid(), "Khong the sinh MVIR.");
         diag.flush();
         return 65;
     }
-    std::cout << "[8] Sinh FLIR thanh cong!\n";
+    std::cout << "[8] Sinh MVIR thanh cong!\n";
     if (verbose) {
-        std::cout << "\n=== FLIR ===\n";
-        std::cout << flirModule->toString() << "\n";
+        std::cout << "\n=== MVIR ===\n";
+        std::cout << mvirModule->toString() << "\n";
     }
 
     // ── Phase 7: Borrow Checker ──────────────────────────────────────────────
     std::cout << "[8.1] Kiem tra muon tham chieu (BorrowChecker)..." << std::endl;
-    BorrowChecker borrowChecker(flirModule.get(), diag);
+    BorrowChecker borrowChecker(mvirModule.get(), diag);
     bool borrowOk = borrowChecker.check();
     if (!borrowOk) {
         diag.error(SourceLocation::invalid(), "BorrowChecker that bai.");
@@ -146,7 +146,7 @@ int main(int argc, char* argv[]) {
     llvm::Module llvmModule(filepath, llvmContext);
     
     LLVMIRGenerator llvmGen(llvmContext, llvmModule, symbolTable);
-    bool llvmOk = llvmGen.generate(flirModule.get());
+    bool llvmOk = llvmGen.generate(mvirModule.get());
     
     if (!llvmOk) {
         diag.error(SourceLocation::invalid(), "Loi trong qua trinh sinh LLVM IR.");

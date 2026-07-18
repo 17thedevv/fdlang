@@ -21,8 +21,8 @@ Phase 1 — MVP Compiler
 [✓] Diagnostic Engine
 [✓] Type Checker
 
-[✓] FLIR Specification
-[✓] FLIR Generator
+[✓] MVIR Specification
+[✓] MVIR Generator
 
 [✓] LLVM Backend
 [✓] Executable Generation
@@ -36,7 +36,7 @@ Resolver
    ↓
 Type Checker
    ↓
-FLIR
+MVIR
    ↓
 LLVM IR
    ↓

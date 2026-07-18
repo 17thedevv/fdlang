@@ -31,11 +31,11 @@ The frontend and middle-end are highly structured and currently passing **100% o
 - **Test Coverage**: 7 test suites (`ASTManualTest`, `LexerTest`, `ParserTest`, `ResolverTest`, `DiagnosticTest`, `TypeCheckerTest`, `CFGTest`) are all **GREEN (Passed)**.
 
 ## 4. Known Issues & Tech Debt
-- **`FLIRGenerator.cpp`**: Currently commented out in `CMakeLists.txt`. The AST has evolved rapidly (e.g., `PrintStmtNode` removed, `LiteralExpr` changes), and the FLIR (FDLang Intermediate Representation) generator is currently out of sync and needs an overhaul.
+- **`MVIRGenerator.cpp`**: Currently commented out in `CMakeLists.txt`. The AST has evolved rapidly (e.g., `PrintStmtNode` removed, `LiteralExpr` changes), and the MVIR (FDLang Intermediate Representation) generator is currently out of sync and needs an overhaul.
 
 ## 5. Next Steps
 When starting a new session, you can pick up from here:
-1. **Fix/Sync FLIRGenerator (Middle-End/Back-End Transition)**: Update FLIR generation to match the current AST so the compiler can lower the AST into IR.
+1. **Fix/Sync MVIRGenerator (Middle-End/Back-End Transition)**: Update MVIR generation to match the current AST so the compiler can lower the AST into IR.
 2. **Traits & Generics (A1.5 / Advanced)**: Implement trait bounds and generic instantiation.
 3. **Code Generation (BackEnd)**: LLVM IR translation.
 

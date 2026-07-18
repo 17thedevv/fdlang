@@ -12,7 +12,7 @@
 #include "mellis/MiddleEnd/SymbolTable.h"
 #include "mellis/MiddleEnd/Resolver.h"
 #include "mellis/MiddleEnd/TypeChecker.h"
-#include "mellis/MiddleEnd/FLIRGenerator.h"
+#include "mellis/MiddleEnd/MVIRGenerator.h"
 #include "mellis/BackEnd/LLVMIRGenerator.h"
 #include <llvm/Support/raw_ostream.h>
 
@@ -34,14 +34,14 @@ std::string generateLLVM(const std::string& source) {
     TypeChecker tc(table, diag, ctx);
     tc.check(ast.get());
 
-    FLIRGenerator flirGen(table, tc);
+    MVIRGenerator mvirGen(table, tc);
     auto* prog = dynamic_cast<ProgramNode*>(ast.get());
-    auto flirModule = flirGen.generate(*prog);
+    auto mvirModule = mvirGen.generate(*prog);
 
     llvm::LLVMContext llvmCtx;
     llvm::Module llvmModule("test_module", llvmCtx);
     LLVMIRGenerator llvmGen(llvmCtx, llvmModule, table);
-    bool ok = llvmGen.generate(flirModule.get());
+    bool ok = llvmGen.generate(mvirModule.get());
     assert(ok && "LLVM generation/verification failed");
 
     std::string outStr;

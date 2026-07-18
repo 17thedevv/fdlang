@@ -1,8 +1,8 @@
-#include "mellis/MiddleEnd/FLIR.h"
+#include "mellis/MiddleEnd/MVIR.h"
 #include <sstream>
 
 namespace fl {
-namespace flir {
+namespace mvir {
 
 // =============================================================================
 // 1. Types
@@ -38,17 +38,17 @@ std::string AllocaInst::toString() const {
 }
 
 std::string LoadInst::toString() const {
-    return dest.toString() + " = load " + flir::toString(ptr);
+    return dest.toString() + " = load " + mvir::toString(ptr);
 }
 
 std::string StoreInst::toString() const {
-    return "store " + flir::toString(value) + ", " + flir::toString(ptr);
+    return "store " + mvir::toString(value) + ", " + mvir::toString(ptr);
 }
 
 std::string GetPtrInst::toString() const {
-    std::string res = dest.toString() + " = get_ptr " + flir::toString(base);
+    std::string res = dest.toString() + " = get_ptr " + mvir::toString(base);
     for (const auto& off : offsets) {
-        res += ", " + flir::toString(off);
+        res += ", " + mvir::toString(off);
     }
     return res;
 }
@@ -62,11 +62,11 @@ std::string EndScopeInst::toString() const {
 }
 
 std::string BorrowInst::toString() const {
-    return dest.toString() + " = borrow " + (isMutable ? "mut" : "shared") + " " + flir::toString(base);
+    return dest.toString() + " = borrow " + (isMutable ? "mut" : "shared") + " " + mvir::toString(base);
 }
 
 std::string CastInst::toString() const {
-    return dest.toString() + " = cast " + flir::toString(value) + " to " + formatType(targetType);
+    return dest.toString() + " = cast " + mvir::toString(value) + " to " + formatType(targetType);
 }
 
 std::string formatAluOp(AluOp op) {
@@ -87,7 +87,7 @@ std::string formatAluOp(AluOp op) {
 
 std::string AluInst::toString() const {
     return dest.toString() + " = " + formatAluOp(op) + " " +
-           flir::toString(left) + ", " + flir::toString(right);
+           mvir::toString(left) + ", " + mvir::toString(right);
 }
 
 std::string CallInst::toString() const {
@@ -95,9 +95,9 @@ std::string CallInst::toString() const {
     if (dest) {
         res += dest->toString() + " = ";
     }
-    res += "call " + fl::flir::toString(func) + "(";
+    res += "call " + fl::mvir::toString(func) + "(";
     for (size_t i = 0; i < args.size(); ++i) {
-        res += flir::toString(args[i]);
+        res += mvir::toString(args[i]);
         if (i < args.size() - 1) {
             res += ", ";
         }
@@ -115,19 +115,19 @@ std::string JumpTerm::toString() const {
 }
 
 std::string BranchTerm::toString() const {
-    return "branch " + flir::toString(condition) + ", " +
+    return "branch " + mvir::toString(condition) + ", " +
            trueTarget.toString() + ", " + falseTarget.toString();
 }
 
 std::string RetTerm::toString() const {
     if (value) {
-        return "ret " + flir::toString(*value);
+        return "ret " + mvir::toString(*value);
     }
     return "ret";
 }
 
 std::string SwitchTerm::toString() const {
-    std::string res = "switch " + flir::toString(condition) + " { ";
+    std::string res = "switch " + mvir::toString(condition) + " { ";
     for (const auto& c : cases) {
         res += c.first.toString() + ": " + c.second.toString() + ", ";
     }
@@ -214,5 +214,5 @@ std::string Module::toString() const {
     return res;
 }
 
-} // namespace flir
+} // namespace mvir
 } // namespace fl

@@ -17,7 +17,7 @@ Parser      → builds AST (nodes, no meaning)
 Resolver    → connects identifiers to symbols  ← THIS PLAN
 TypeChecker → verifies types
 BorrowChecker → ownership rules
-FLIR        → IR generation
+MVIR        → IR generation
 ```
 
 Each pass reads the previous pass's output and writes annotations. No pass does another's work.

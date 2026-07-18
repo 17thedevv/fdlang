@@ -3,17 +3,17 @@
 #include "mellis/FrontEnd/ASTVisitor.h"
 #include "mellis/MiddleEnd/SymbolTable.h"
 #include "mellis/MiddleEnd/TypeChecker.h"
-#include "mellis/MiddleEnd/FLIR.h"
+#include "mellis/MiddleEnd/MVIR.h"
 #include <unordered_map>
 
 namespace fl {
 
-class FLIRGenerator : public ASTVisitor {
+class MVIRGenerator : public ASTVisitor {
 public:
-    explicit FLIRGenerator(SymbolTable& symTable, TypeChecker& typeChecker);
+    explicit MVIRGenerator(SymbolTable& symTable, TypeChecker& typeChecker);
 
-    /// Generate FLIR for the given program.
-    std::unique_ptr<flir::Module> generate(ProgramNode& program);
+    /// Generate MVIR for the given program.
+    std::unique_ptr<mvir::Module> generate(ProgramNode& program);
 
     void visit(ProgramNode& node) override;
 
@@ -70,32 +70,32 @@ private:
 
     // ── Context State ────────────────────────────────────────────────────────
 
-    std::unique_ptr<flir::Module> module_;
-    flir::Function* currentFunction_ = nullptr;
-    flir::BasicBlock* currentBlock_ = nullptr;
+    std::unique_ptr<mvir::Module> module_;
+    mvir::Function* currentFunction_ = nullptr;
+    mvir::BasicBlock* currentBlock_ = nullptr;
 
     int nextLocalId_ = 0;
     int nextLabelId_ = 0;
-    std::vector<std::vector<flir::LocalId>> scopeStack_;
+    std::vector<std::vector<mvir::LocalId>> scopeStack_;
 
-    std::unordered_map<SymbolID, flir::LocalId> varAllocas_;
+    std::unordered_map<SymbolID, mvir::LocalId> varAllocas_;
 
     enum class EvalMode { RValue, LValue };
     EvalMode evalMode_ = EvalMode::RValue;
 
-    flir::Operand lastEvaluatedOperand_ = flir::Number{"0"};
+    mvir::Operand lastEvaluatedOperand_ = mvir::Number{"0"};
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    flir::LocalId nextLocal();
-    flir::LabelId nextLabel(const std::string& prefix = "bb");
+    mvir::LocalId nextLocal();
+    mvir::LabelId nextLabel(const std::string& prefix = "bb");
 
-    void terminateBlock(std::unique_ptr<flir::Terminator> term);
-    void startBlock(flir::LabelId label);
+    void terminateBlock(std::unique_ptr<mvir::Terminator> term);
+    void startBlock(mvir::LabelId label);
     
     void resetFunctionState();
-    flir::Operand evaluateLValue(ExprNode& expr);
-    flir::Operand evaluateRValue(ExprNode& expr);
+    mvir::Operand evaluateLValue(ExprNode& expr);
+    mvir::Operand evaluateRValue(ExprNode& expr);
 };
 
 } // namespace fl

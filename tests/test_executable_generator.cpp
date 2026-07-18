@@ -1,7 +1,7 @@
 // =============================================================================
 // tests/test_executable_generator.cpp
 //
-// Integration test: AST -> FLIR -> LLVM IR -> Executable -> Execution.
+// Integration test: AST -> MVIR -> LLVM IR -> Executable -> Execution.
 // =============================================================================
 
 #include <cassert>
@@ -13,7 +13,7 @@
 #include "mellis/MiddleEnd/SymbolTable.h"
 #include "mellis/MiddleEnd/Resolver.h"
 #include "mellis/MiddleEnd/TypeChecker.h"
-#include "mellis/MiddleEnd/FLIRGenerator.h"
+#include "mellis/MiddleEnd/MVIRGenerator.h"
 #include "mellis/BackEnd/LLVMIRGenerator.h"
 #include "mellis/BackEnd/ExecutableGenerator.h"
 #include "mellis/Support/ClangLinker.h"
@@ -40,13 +40,13 @@ void test_end_to_end_execution() {
     tc.setMonomorphizationEngine(&monoEngine);
     tc.check(ast.get());
 
-    FLIRGenerator flirGen(table, tc);
-    auto flirModule = flirGen.generate(*ast.get());
+    MVIRGenerator mvirGen(table, tc);
+    auto mvirModule = mvirGen.generate(*ast.get());
 
     llvm::LLVMContext ctx;
     llvm::Module llvmModule("test_module", ctx);
     LLVMIRGenerator llvmGen(ctx, llvmModule, table);
-    bool ok = llvmGen.generate(flirModule.get());
+    bool ok = llvmGen.generate(mvirModule.get());
     if (!ok) {
         std::cerr << "LLVM generation failed\n";
         std::exit(1);

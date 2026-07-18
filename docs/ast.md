@@ -2,7 +2,7 @@
 
 > **Trạng thái:** Draft v2 — chờ freeze
 > **Phụ thuộc:** `grammar.md` v1.0 (frozen)
-> **Được dùng bởi:** Parser, Resolver, TypeChecker, BorrowChecker, FLIRGenerator
+> **Được dùng bởi:** Parser, Resolver, TypeChecker, BorrowChecker, MVIRGenerator
 > **Cập nhật lần cuối:** 2026-07-17 (v2 — major revision)
 
 ---
@@ -23,7 +23,7 @@ Parser          -> tao node, dien SourceLocation, rawText, parsedValue
 Resolver        -> dien symbolId tren IdentifierExpr, DeclNode, CallExpr, PatternNode
 TypeChecker     -> dien typeId tren ExprNode, TypeNode
 BorrowChecker   -> doc symbolId + typeId, KHONG viet vao AST (dung side-table rieng)
-FLIRGenerator   -> doc tat ca annotations, KHONG thay doi AST
+MVIRGenerator   -> doc tat ca annotations, KHONG thay doi AST
 ```
 
 ---
@@ -122,7 +122,7 @@ enum class AssignOp : uint8_t {
 };
 ```
 
-Tai sao: TypeChecker, FLIR, LLVM deu dung `switch(op)`.
+Tai sao: TypeChecker, MVIR, LLVM deu dung `switch(op)`.
 Clang dung `BinaryOperatorKind` tuong tu.
 
 ---
@@ -131,7 +131,7 @@ Clang dung `BinaryOperatorKind` tuong tu.
 
 Luu ca hai: `rawText` (de diagnostic giu nguyen nguon) +
 `value` variant (de semantic pass dung truc tiep).
-Parser parse mot lan. TypeChecker, FLIR, LLVM dung luon.
+Parser parse mot lan. TypeChecker, MVIR, LLVM dung luon.
 
 ```cpp
 enum class LiteralKind : uint8_t {
@@ -172,7 +172,7 @@ public:
 Tai sao variant thay union:
 - Union khong biet active member — UB neu doc sai.
 - `std::variant` type-safe, `std::visit` an toan.
-- Parser parse mot lan. TypeChecker / FLIR dung `std::get<>` truc tiep.
+- Parser parse mot lan. TypeChecker / MVIR dung `std::get<>` truc tiep.
 
 ---
 
@@ -685,7 +685,7 @@ public:
 Tai sao tach `BuiltinTypeNode` khoi `NamedTypeNode`:
 - Builtin type khong can Resolver. `i32` la `i32` — khong lookup Symbol.
 - TypeChecker nhan biet ngay qua `kind` enum, khong so sanh string.
-- FLIR/LLVM map truc tiep `BuiltinKind::I32` -> `i32` LLVM type.
+- MVIR/LLVM map truc tiep `BuiltinKind::I32` -> `i32` LLVM type.
 
 ---
 
@@ -836,5 +836,5 @@ public:
     |
 [6] BorrowChecker Phase 1
     |
-[7] FLIRGenerator v1.0
+[7] MVIRGenerator v1.0
 ```

@@ -44,8 +44,8 @@ set(MIDDLEEND_SRC
     src/MiddleEnd/CFG.cpp
     src/MiddleEnd/MatchAnalyzer.cpp
     src/MiddleEnd/BorrowChecker.cpp
-    src/MiddleEnd/FLIR.cpp
-    src/MiddleEnd/FLIRGenerator.cpp
+    src/MiddleEnd/MVIR.cpp
+    src/MiddleEnd/MVIRGenerator.cpp
     src/MiddleEnd/Mangle.cpp
     src/MiddleEnd/SubstitutionVisitor.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
@@ -181,16 +181,16 @@ add_executable(test_cfg
 target_include_directories(test_cfg PRIVATE include)
 add_test(NAME CFGTest COMMAND test_cfg)
 
-# ── test_flir_generator ───────────────────────────────────────────────────────
-add_executable(test_flir_generator
-    tests/test_flir_generator.cpp
+# ── test_mvir_generator ───────────────────────────────────────────────────────
+add_executable(test_mvir_generator
+    tests/test_mvir_generator.cpp
     src/FrontEnd/Lexer.cpp
     src/FrontEnd/Parser.cpp
     src/MiddleEnd/SymbolTable.cpp
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
-    src/MiddleEnd/FLIR.cpp
-    src/MiddleEnd/FLIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIR.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
     src/Support/Diagnostic.cpp
@@ -198,8 +198,8 @@ add_executable(test_flir_generator
 
     src/Core/SourceManager.cpp
 )
-target_include_directories(test_flir_generator PRIVATE include)
-add_test(NAME FLIRGeneratorTest COMMAND test_flir_generator)
+target_include_directories(test_mvir_generator PRIVATE include)
+add_test(NAME MVIRGeneratorTest COMMAND test_mvir_generator)
 
 # ── test_borrow_checker ───────────────────────────────────────────────────────
 add_executable(test_borrow_checker
@@ -209,8 +209,8 @@ add_executable(test_borrow_checker
     src/MiddleEnd/SymbolTable.cpp
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
-    src/MiddleEnd/FLIR.cpp
-    src/MiddleEnd/FLIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIR.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
@@ -230,8 +230,8 @@ add_executable(test_llvmir_generator
     src/MiddleEnd/SymbolTable.cpp
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
-    src/MiddleEnd/FLIR.cpp
-    src/MiddleEnd/FLIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIR.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
     src/BackEnd/LLVMIRGenerator.cpp
@@ -252,8 +252,8 @@ add_executable(test_executable_generator
     src/MiddleEnd/SymbolTable.cpp
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
-    src/MiddleEnd/FLIR.cpp
-    src/MiddleEnd/FLIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIR.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
     src/BackEnd/LLVMIRGenerator.cpp

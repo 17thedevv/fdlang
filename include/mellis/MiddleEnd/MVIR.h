@@ -1,16 +1,16 @@
 // =============================================================================
-// mellis/MiddleEnd/FLIR.h
+// mellis/MiddleEnd/MVIR.h
 //
-// FreedomLanguage Intermediate Representation (FLIR).
+// FreedomLanguage Intermediate Representation (MVIR).
 //
-// FLIR is a high-level representation, directly mirroring the specification
-// in `docs/flir.md`. It strictly adheres to:
+// MVIR is a high-level representation, directly mirroring the specification
+// in `docs/mvir.md`. It strictly adheres to:
 //   - Non-SSA for variables (using explicit alloca/load/store)
 //   - Basic Blocks ending in a single terminator
 //   - Strict type annotations
 //
-// This layer is pure data. The AST-to-FLIR translation logic belongs
-// to FLIRGenerator.
+// This layer is pure data. The AST-to-MVIR translation logic belongs
+// to MVIRGenerator.
 // =============================================================================
 
 #pragma once
@@ -24,14 +24,14 @@
 #include <optional>
 
 namespace fl {
-namespace flir {
+namespace mvir {
 
 // =============================================================================
 // 1. Types
 // =============================================================================
 
 /// Convert const Type* (from AST/TypeChecker) to a string representation matching
-/// `docs/flir.md` (e.g., "i32", "bool", "void").
+/// `docs/mvir.md` (e.g., "i32", "bool", "void").
 std::string formatType(const Type* type);
 
 // =============================================================================
@@ -277,5 +277,5 @@ struct Module {
     std::string toString() const;
 };
 
-} // namespace flir
+} // namespace mvir
 } // namespace fl
