@@ -1,9 +1,9 @@
-#include "fdlang/MiddleEnd/CFG.h"
-#include "fdlang/FrontEnd/Lexer.h"
-#include "fdlang/FrontEnd/Parser.h"
-#include "fdlang/AST/ProgramNode.h"
-#include "fdlang/AST/DeclNode.h"
-#include "fdlang/Support/Diagnostic.h"
+#include "mellis/MiddleEnd/CFG.h"
+#include "mellis/FrontEnd/Lexer.h"
+#include "mellis/FrontEnd/Parser.h"
+#include "mellis/AST/ProgramNode.h"
+#include "mellis/AST/DeclNode.h"
+#include "mellis/Support/Diagnostic.h"
 #include <iostream>
 
 using namespace fl;
@@ -119,7 +119,7 @@ void test_cfg_break_inside_loop() {
 
 int main() {
     std::cout << "========================================\n";
-    std::cout << "  FDLANG CFG TESTS\n";
+    std::cout << "  MELLIS CFG TESTS\n";
     std::cout << "========================================\n";
     
     test_cfg_valid_return();

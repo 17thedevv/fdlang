@@ -1,16 +1,19 @@
-#include "fdlang/FrontEnd/Parser.h"
-#include "fdlang/FrontEnd/ASTVisitor.h"
-#include "fdlang/AST/PatternNode.h"
+#include "mellis/FrontEnd/Parser.h"
+#include "mellis/FrontEnd/ASTVisitor.h"
+#include "mellis/AST/PatternNode.h"
+#include "mellis/Core/SourceManager.h"
 #include <iostream>
 
 namespace fl {
 
-Parser::Parser(Lexer& lexer, DiagnosticEngine& diag) : lexer(lexer), diag(diag) {
+Parser::Parser(Lexer& lexer, DiagnosticEngine& diag, SourceManager* srcMgr, FileID fid) 
+    : lexer(lexer), diag(diag), sourceMgr(srcMgr), fileId(fid) {
     advance();
     advance();
 }
 
 void Parser::advance() {
+    prev = current;
     current = peek;
     peek = lexer.nextToken();
 }
@@ -34,7 +37,7 @@ Token Parser::consume(TokenType type, const char* errorMessage) {
         advance();
         return t;
     }
-    SourceLocation loc{current.byteOffset, 0, 0};
+    SourceLocation loc = SourceLocation::fromOffset(current.byteOffset);
     diag.error(loc, errorMessage);
     throw ParseError();
 }
@@ -71,13 +74,43 @@ std::unique_ptr<ProgramNode> Parser::parse() {
 // GENERICS
 // ==========================================
 
+static bool isGenericEnd(TokenType type) {
+    return type == TokenType::GREATER_THAN || type == TokenType::RSHIFT || type == TokenType::RSHIFT_ASSIGN || type == TokenType::GREATER_THAN_EQUAL;
+}
+
+void Parser::consumeGenericEnd() {
+    if (match(TokenType::GREATER_THAN)) {
+        return;
+    }
+    if (current.type == TokenType::RSHIFT) {
+        current.type = TokenType::GREATER_THAN;
+        current.text = std::string_view(current.text.data() + 1, current.text.length() - 1);
+        current.byteOffset += 1;
+        return;
+    }
+    if (current.type == TokenType::RSHIFT_ASSIGN) {
+        current.type = TokenType::GREATER_THAN_EQUAL;
+        current.text = std::string_view(current.text.data() + 1, current.text.length() - 1);
+        current.byteOffset += 1;
+        return;
+    }
+    if (current.type == TokenType::GREATER_THAN_EQUAL) {
+        current.type = TokenType::EQUAL;
+        current.text = std::string_view(current.text.data() + 1, current.text.length() - 1);
+        current.byteOffset += 1;
+        return;
+    }
+    diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected '>'");
+    throw ParseError();
+}
+
 std::vector<GenericParamNode> Parser::parseGenericParams() {
     std::vector<GenericParamNode> params;
-    if (match(TokenType::LESS_THAN)) {
-        if (!check(TokenType::GREATER_THAN)) {
+    if (match(TokenType::GENERIC_START)) {
+        if (!isGenericEnd(current.type)) {
             do {
                 GenericParamNode param;
-                param.loc = SourceLocation{current.byteOffset, 0, 0};
+                param.loc = SourceLocation::fromOffset(current.byteOffset);
                 Token nameTok = consume(TokenType::IDENTIFIER, "Expected generic parameter name");
                 param.name = nameTok.text;
                 
@@ -89,31 +122,263 @@ std::vector<GenericParamNode> Parser::parseGenericParams() {
                 params.push_back(std::move(param));
             } while (match(TokenType::COMMA));
         }
-        consume(TokenType::GREATER_THAN, "Expected '>' after generic parameters");
+        consumeGenericEnd();
     }
     return params;
+}
+
+std::vector<std::unique_ptr<TypeNode>> Parser::parseGenericArgs() {
+    std::vector<std::unique_ptr<TypeNode>> args;
+    if (match(TokenType::GENERIC_START)) {
+        if (!isGenericEnd(current.type)) {
+            do {
+                args.push_back(parseType());
+            } while (match(TokenType::COMMA));
+        }
+        consumeGenericEnd();
+    }
+    return args;
 }
 
 // ==========================================
 // DECLARATIONS
 // ==========================================
 
-std::unique_ptr<ItemNode> Parser::parseDeclaration() {
-    switch (current.type) {
-        case TokenType::KW_DEC:
-        case TokenType::KW_CONST: return parseVarDecl();
-        case TokenType::KW_FN: return parseFunctionDecl();
-        case TokenType::KW_STRUCT: return parseStructDecl();
-        case TokenType::KW_ENUM: return parseEnumDecl();
-        case TokenType::KW_TRAIT: return parseTraitDecl();
-        case TokenType::KW_IMPL: return parseImplDecl();
-        default: return parseStatement();
+
+std::vector<AnnotationNode> Parser::parseAnnotations() {
+    std::vector<AnnotationNode> annotations;
+    while (match(TokenType::AT_BRACKET)) {
+        do {
+            AnnotationNode annot;
+            // No loc on AnnotationNode
+            Token nameTok = consume(TokenType::IDENTIFIER, "Expected annotation name");
+            annot.name = nameTok.text;
+            if (match(TokenType::L_PAREN)) {
+                do {
+                    AnnotationArg arg;
+                    if (current.type == TokenType::IDENTIFIER && peek.type == TokenType::EQUAL) {
+                        Token keyTok = consume(TokenType::IDENTIFIER, "Expected annotation arg key");
+                        consume(TokenType::EQUAL, "Expected '=' after annotation arg key");
+                        arg.key = std::string(keyTok.text);
+                    }
+                    arg.value = parseExpression(false);
+                    annot.args.push_back(std::move(arg));
+                } while (match(TokenType::COMMA));
+                consume(TokenType::R_PAREN, "Expected ')' after annotation args");
+            }
+            annotations.push_back(std::move(annot));
+        } while (match(TokenType::COMMA));
+        consume(TokenType::R_BRACKET, "Expected ']' after annotations");
     }
+    return annotations;
+}
+
+UseTreeNode Parser::parseUseTree() {
+    UseTreeNode node;
+    node.loc = SourceLocation::fromOffset(current.byteOffset);
+    if (match(TokenType::MULTIPLY)) {
+        node.isGlob = true;
+        return node;
+    }
+    if (match(TokenType::L_BRACE)) {
+        do {
+            node.children.push_back(parseUseTree());
+        } while (match(TokenType::COMMA));
+        consume(TokenType::R_BRACE, "Expected '}' in use tree");
+        return node;
+    }
+    while (true) {
+        if (current.type == TokenType::IDENTIFIER || current.type == TokenType::KW_PRINT || current.type == TokenType::STRING_LITERAL) {
+            node.segments.push_back(current.text);
+            advance();
+        } else {
+            diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected identifier or string in use path");
+            throw ParseError();
+        }
+        
+        if (check(TokenType::COLON_COLON)) {
+            advance(); // consume ::
+            if (current.type == TokenType::MULTIPLY || current.type == TokenType::L_BRACE) {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    
+    std::cout << "[DEBUG] parseUseTree after segment: " << (int)current.type << " " << std::string(current.text) << "\n";
+    if (current.type == TokenType::MULTIPLY || current.type == TokenType::L_BRACE || current.type == TokenType::IDENTIFIER || current.type == TokenType::STRING_LITERAL) {
+        if (match(TokenType::MULTIPLY)) {
+            node.isGlob = true;
+            return node;
+        }
+        if (match(TokenType::L_BRACE)) {
+            do {
+                node.children.push_back(parseUseTree());
+            } while (match(TokenType::COMMA));
+            consume(TokenType::R_BRACE, "Expected '}' in use tree");
+            return node;
+        }
+    }
+    
+    if (match(TokenType::KW_AS)) {
+        Token aliasTok = consume(TokenType::IDENTIFIER, "Expected alias after 'as'");
+        node.alias = aliasTok.text;
+    }
+    return node;
+}
+
+std::unique_ptr<DeclNode> Parser::parseTypeAliasDecl() {
+    auto node = std::make_unique<TypeAliasDeclNode>();
+    node->loc = SourceLocation::fromOffset(current.byteOffset);
+    consume(TokenType::KW_TYPE, "Expected 'type'");
+    Token nameTok = consume(TokenType::IDENTIFIER, "Expected type alias name");
+    node->name = nameTok.text;
+    node->genericParams = parseGenericParams();
+    consume(TokenType::EQUAL, "Expected '='");
+    node->aliasedType = parseType();
+    consume(TokenType::SEMI, "Expected ';' after type alias");
+    return node;
+}
+
+std::unique_ptr<DeclNode> Parser::parseModDecl() {
+    auto node = std::make_unique<ModDeclNode>();
+    node->loc = SourceLocation::fromOffset(current.byteOffset, fileId);
+    consume(TokenType::KW_MOD, "Expected 'mod'");
+    Token nameTok = consume(TokenType::IDENTIFIER, "Expected module name");
+    node->name = nameTok.text;
+    
+    if (match(TokenType::SEMI)) {
+        // Out-of-line module
+        node->isOutlined = true;
+        if (sourceMgr) {
+            std::string modPath = sourceMgr->resolveModulePath(fileId, node->name);
+            if (modPath.empty()) {
+                diag.error(node->loc, "Could not find module file for '" + std::string(node->name) + "'");
+            } else {
+                FileID modFileId = sourceMgr->loadFile(modPath);
+                if (modFileId != SourceManager::kInvalidFileID) {
+                    std::string_view modSource = sourceMgr->getSource(modFileId);
+                    Lexer modLexer(modSource);
+                    Parser modParser(modLexer, diag, sourceMgr, modFileId);
+                    auto modProg = modParser.parse();
+                    for (auto& d : modProg->items) {
+                        if (auto decl = dynamic_cast<DeclNode*>(d.get())) {
+                            d.release();
+                            node->decls.push_back(std::unique_ptr<DeclNode>(decl));
+                        }
+                    }
+                }
+            }
+        } else {
+            diag.error(node->loc, "Out-of-line modules not supported without SourceManager");
+        }
+    } else {
+        consume(TokenType::L_BRACE, "Expected '{' for module body or ';' for out-of-line module");
+        while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {
+            auto item = parseDeclaration();
+            if (auto decl = dynamic_cast<DeclNode*>(item.get())) {
+                item.release();
+                node->decls.push_back(std::unique_ptr<DeclNode>(decl));
+            } else {
+                diag.error(SourceLocation::fromOffset(current.byteOffset, fileId), "Expected declaration inside module");
+                throw ParseError();
+            }
+        }
+        consume(TokenType::R_BRACE, "Expected '}' after module body");
+    }
+    return node;
+}
+
+std::unique_ptr<DeclNode> Parser::parseUseDecl() {
+
+    auto node = std::make_unique<UseDeclNode>();
+    node->loc = SourceLocation::fromOffset(current.byteOffset);
+    consume(TokenType::KW_USE, "Expected 'use'");
+    node->tree = parseUseTree();
+    if (current.type != TokenType::SEMI) { std::cout << "[DEBUG] parseUseDecl expected SEMI but got: " << (int)current.type << " text: " << std::string(current.text) << "\n"; } consume(TokenType::SEMI, "Expected ';' after use declaration");
+    return node;
+}
+
+
+
+
+
+std::unique_ptr<DeclNode> Parser::parseExternDecl() {
+    auto node = std::make_unique<ExternDeclNode>();
+    node->loc = SourceLocation::fromOffset(current.byteOffset);
+    consume(TokenType::KW_EXTERN, "Expected 'extern'");
+    auto func = parseFunctionDecl(true); // true means allow empty body
+    auto fd = dynamic_cast<FunctionDeclNode*>(func.get());
+    if (!fd) {
+        diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected function declaration after extern");
+        throw ParseError();
+    }
+    func.release();
+    node->func = std::unique_ptr<FunctionDeclNode>(fd);
+    return node;
+}
+
+
+
+std::unique_ptr<ItemNode> Parser::parseDeclaration() {
+    std::cout << "[DEBUG] parseDecl current.type=" << (int)current.type << " text=" << std::string(current.text) << " byteOffset=" << current.byteOffset << "\n";
+    auto annots = parseAnnotations();
+    
+    bool isExported = false;
+    if (match(TokenType::KW_EXPORT)) {
+        isExported = true;
+    }
+    
+    std::unique_ptr<DeclNode> decl = nullptr;
+    
+    bool isFunction = false;
+    if (current.type == TokenType::KW_FN || current.type == TokenType::KW_ASYNC) {
+        isFunction = true;
+    } else if (current.type == TokenType::KW_COMPTIME) {
+        if (peek.type == TokenType::KW_FN || peek.type == TokenType::KW_ASYNC) {
+            isFunction = true;
+        }
+    }
+
+    if (current.type == TokenType::KW_DEC || current.type == TokenType::KW_CONST) {
+        decl = parseVarDecl();
+    } else if (isFunction) {
+        decl = parseFunctionDecl();
+    } else if (current.type == TokenType::KW_STRUCT) {
+        decl = parseStructDecl();
+    } else if (current.type == TokenType::KW_ENUM) {
+        decl = parseEnumDecl();
+    } else if (current.type == TokenType::KW_TRAIT) {
+        decl = parseTraitDecl();
+    } else if (current.type == TokenType::KW_IMPL) {
+        decl = parseImplDecl();
+    } else if (current.type == TokenType::KW_USE) {
+        decl = parseUseDecl();
+    } else if (current.type == TokenType::KW_TYPE) {
+        decl = parseTypeAliasDecl();
+    } else if (current.type == TokenType::KW_MOD) {
+        decl = parseModDecl();
+    } else if (current.type == TokenType::KW_EXTERN) {
+        decl = parseExternDecl();
+    } else {
+        if (!annots.empty() || isExported) {
+            diag.error(SourceLocation::fromOffset(current.byteOffset), "Annotations or export not attached to a declaration");
+            throw ParseError();
+        }
+        return parseStatement();
+    }
+    
+    if (decl) {
+        decl->isExported = isExported;
+        decl->annotations = std::move(annots);
+    }
+    return decl;
 }
 
 std::unique_ptr<DeclNode> Parser::parseVarDecl() {
     auto varDecl = std::make_unique<VarDeclNode>();
-    varDecl->loc = SourceLocation{current.byteOffset, 0, 0};
+    varDecl->loc = SourceLocation::fromOffset(current.byteOffset);
     if (match(TokenType::KW_EXPORT)) varDecl->isExported = true;
     if (match(TokenType::KW_CONST)) varDecl->isMutable = false;
     else { consume(TokenType::KW_DEC, "Expected 'dec' or 'const'"); varDecl->isMutable = true; }
@@ -122,15 +387,17 @@ std::unique_ptr<DeclNode> Parser::parseVarDecl() {
     varDecl->name = nameTok.text;
     if (match(TokenType::COLON)) varDecl->typeAnnot = parseType();
     
-    consume(TokenType::EQUAL, "Expected '=' after variable declaration");
-    varDecl->initializer = parseExpression();
+    if (match(TokenType::EQUAL)) {
+        varDecl->initializer = parseExpression();
+    }
+    
     consume(TokenType::SEMI, "Expected ';' after variable declaration");
     return varDecl;
 }
 
-std::unique_ptr<DeclNode> Parser::parseFunctionDecl() {
+std::unique_ptr<DeclNode> Parser::parseFunctionDecl(bool allowEmptyBody) {
     auto funcDecl = std::make_unique<FunctionDeclNode>();
-    funcDecl->loc = SourceLocation{current.byteOffset, 0, 0};
+    funcDecl->loc = SourceLocation::fromOffset(current.byteOffset);
 
     if (match(TokenType::KW_EXPORT)) funcDecl->isExported = true;
     if (match(TokenType::KW_COMPTIME)) funcDecl->isComptime = true;
@@ -146,18 +413,26 @@ std::unique_ptr<DeclNode> Parser::parseFunctionDecl() {
     if (!check(TokenType::R_PAREN)) {
         do {
             auto param = std::make_unique<ParamDeclNode>();
-            param->loc = SourceLocation{current.byteOffset, 0, 0};
-            if (check(TokenType::KW_SELF_VAL)) {
+            param->loc = SourceLocation::fromOffset(current.byteOffset);
+            if (match(TokenType::DOT_DOT_DOT)) {
+                funcDecl->isVariadic = true;
+                break; // '...' must be the last parameter
+            } else if (check(TokenType::KW_SELF_VAL)) {
                 param->isSelf = true;
                 param->name = current.text;
                 advance();
-                consume(TokenType::COLON, "Expected ':' after 'self'");
-                param->type = parseType();
+                if (match(TokenType::COLON)) {
+                    param->type = parseType();
+                } else {
+                    auto selfType = std::make_unique<NamedTypeNode>();
+                    selfType->loc = SourceLocation::fromOffset(current.byteOffset);
+                    selfType->segments.push_back("Self");
+                    param->type = std::move(selfType);
+                }
             } else {
                 Token pName = consume(TokenType::IDENTIFIER, "Expected parameter name");
                 param->name = pName.text;
                 consume(TokenType::COLON, "Expected ':' after parameter name");
-                if (match(TokenType::DOT_DOT_DOT)) param->isVariadic = true;
                 param->type = parseType();
             }
             funcDecl->params.push_back(std::move(param));
@@ -166,13 +441,17 @@ std::unique_ptr<DeclNode> Parser::parseFunctionDecl() {
     consume(TokenType::R_PAREN, "Expected ')' after parameters");
 
     if (match(TokenType::ARROW)) funcDecl->returnType = parseType();
-    funcDecl->body = parseBlockStatement();
+    if (allowEmptyBody && match(TokenType::SEMI)) {
+        // Empty body allowed for extern functions
+    } else {
+        funcDecl->body = parseBlockStatement();
+    }
     return funcDecl;
 }
 
 std::unique_ptr<DeclNode> Parser::parseStructDecl() {
     auto node = std::make_unique<StructDeclNode>();
-    node->loc = SourceLocation{current.byteOffset, 0, 0};
+    node->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_STRUCT, "Expected 'struct'");
     Token nameTok = consume(TokenType::IDENTIFIER, "Expected struct name");
     node->name = nameTok.text;
@@ -182,13 +461,13 @@ std::unique_ptr<DeclNode> Parser::parseStructDecl() {
     consume(TokenType::L_BRACE, "Expected '{' for struct body");
     while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {
         auto field = std::make_unique<StructFieldNode>();
-        field->loc = SourceLocation{current.byteOffset, 0, 0};
+        field->loc = SourceLocation::fromOffset(current.byteOffset);
         Token fName = consume(TokenType::IDENTIFIER, "Expected field name");
         field->name = fName.text;
         consume(TokenType::COLON, "Expected ':' after field name");
         field->type = parseType();
         node->fields.push_back(std::move(field));
-        if (!match(TokenType::COMMA)) break;
+        consume(TokenType::SEMI, "Expected ';' after struct field");
     }
     consume(TokenType::R_BRACE, "Expected '}' to end struct body");
     return node;
@@ -196,7 +475,7 @@ std::unique_ptr<DeclNode> Parser::parseStructDecl() {
 
 std::unique_ptr<DeclNode> Parser::parseEnumDecl() {
     auto node = std::make_unique<EnumDeclNode>();
-    node->loc = SourceLocation{current.byteOffset, 0, 0};
+    node->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_ENUM, "Expected 'enum'");
     Token nameTok = consume(TokenType::IDENTIFIER, "Expected enum name");
     node->name = nameTok.text;
@@ -206,7 +485,7 @@ std::unique_ptr<DeclNode> Parser::parseEnumDecl() {
     consume(TokenType::L_BRACE, "Expected '{' for enum body");
     while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {
         auto var = std::make_unique<EnumVariantNode>();
-        var->loc = SourceLocation{current.byteOffset, 0, 0};
+        var->loc = SourceLocation::fromOffset(current.byteOffset);
         Token vName = consume(TokenType::IDENTIFIER, "Expected variant name");
         var->name = vName.text;
         
@@ -214,7 +493,7 @@ std::unique_ptr<DeclNode> Parser::parseEnumDecl() {
             if (!check(TokenType::R_PAREN)) {
                 do {
                     auto param = std::make_unique<ParamDeclNode>();
-                    param->loc = SourceLocation{current.byteOffset, 0, 0};
+                    param->loc = SourceLocation::fromOffset(current.byteOffset);
                     if (check(TokenType::IDENTIFIER) && peek.type == TokenType::COLON) {
                         Token pName = consume(TokenType::IDENTIFIER, "");
                         param->name = pName.text;
@@ -235,7 +514,7 @@ std::unique_ptr<DeclNode> Parser::parseEnumDecl() {
 
 std::unique_ptr<DeclNode> Parser::parseTraitDecl() {
     auto node = std::make_unique<TraitDeclNode>();
-    node->loc = SourceLocation{current.byteOffset, 0, 0};
+    node->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_TRAIT, "Expected 'trait'");
     Token nameTok = consume(TokenType::IDENTIFIER, "Expected trait name");
     node->name = nameTok.text;
@@ -244,9 +523,19 @@ std::unique_ptr<DeclNode> Parser::parseTraitDecl() {
 
     consume(TokenType::L_BRACE, "Expected '{'");
     while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {
-        auto decl = parseFunctionDecl();
+        auto annots = parseAnnotations();
+        bool isExported = match(TokenType::KW_EXPORT);
+
+        auto decl = parseFunctionDecl(true); // Traits have empty bodies
+        decl->isExported = isExported;
+        decl->annotations = std::move(annots);
+
         auto funcDecl = std::unique_ptr<FunctionDeclNode>(dynamic_cast<FunctionDeclNode*>(decl.release()));
         if (funcDecl) node->methods.push_back(std::move(funcDecl));
+        else {
+            diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected function in trait");
+            throw ParseError();
+        }
     }
     consume(TokenType::R_BRACE, "Expected '}'");
     return node;
@@ -254,7 +543,7 @@ std::unique_ptr<DeclNode> Parser::parseTraitDecl() {
 
 std::unique_ptr<DeclNode> Parser::parseImplDecl() {
     auto node = std::make_unique<ImplDeclNode>();
-    node->loc = SourceLocation{current.byteOffset, 0, 0};
+    node->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_IMPL, "Expected 'impl'");
     
     node->genericParams = parseGenericParams();
@@ -267,9 +556,19 @@ std::unique_ptr<DeclNode> Parser::parseImplDecl() {
     
     consume(TokenType::L_BRACE, "Expected '{'");
     while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {
+        auto annots = parseAnnotations();
+        bool isExported = match(TokenType::KW_EXPORT);
+        
         auto decl = parseFunctionDecl();
+        decl->isExported = isExported;
+        decl->annotations = std::move(annots);
+        
         auto funcDecl = std::unique_ptr<FunctionDeclNode>(dynamic_cast<FunctionDeclNode*>(decl.release()));
         if (funcDecl) node->methods.push_back(std::move(funcDecl));
+        else {
+            diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected function in impl block");
+            throw ParseError();
+        }
     }
     consume(TokenType::R_BRACE, "Expected '}'");
     return node;
@@ -288,16 +587,23 @@ std::unique_ptr<StmtNode> Parser::parseStatement() {
     if (check(TokenType::KW_CONTINUE)) return parseContinueStatement();
     if (check(TokenType::KW_PRINT)) return parsePrintStatement();
     if (check(TokenType::L_BRACE)) return parseBlockStatement();
+    if (check(TokenType::KW_UNSAFE)) return parseUnsafeStatement();
+    if (check(TokenType::KW_COMPTIME)) return parseComptimeStatement();
     return parseExpressionStatement();
 }
 
 std::unique_ptr<StmtNode> Parser::parseAssignmentStatement() {
-    diag.error(SourceLocation{current.byteOffset, 0, 0}, "parseAssignmentStatement not implemented");
+    diag.error(SourceLocation::fromOffset(current.byteOffset), "parseAssignmentStatement not implemented");
     throw ParseError();
 }
 
 std::unique_ptr<StmtNode> Parser::parseExpressionStatement() {
     auto expr = parseExpression();
+    if (current.type == TokenType::R_BRACE) {
+        auto stmt = std::make_unique<ExprStmtNode>();
+        stmt->expr = std::move(expr);
+        return stmt;
+    }
     consume(TokenType::SEMI, "Expected ';' after expression");
     auto stmt = std::make_unique<ExprStmtNode>();
     stmt->expr = std::move(expr);
@@ -306,7 +612,7 @@ std::unique_ptr<StmtNode> Parser::parseExpressionStatement() {
 
 std::unique_ptr<BlockStmtNode> Parser::parseBlockStatement() {
     auto block = std::make_unique<BlockStmtNode>();
-    block->loc = SourceLocation{current.byteOffset, 0, 0};
+    block->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::L_BRACE, "Expected '{' to start block");
     while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {
         block->body.push_back(parseDeclaration());
@@ -317,7 +623,7 @@ std::unique_ptr<BlockStmtNode> Parser::parseBlockStatement() {
 
 std::unique_ptr<StmtNode> Parser::parseIfStatement() {
     auto ifStmt = std::make_unique<IfStmtNode>();
-    ifStmt->loc = SourceLocation{current.byteOffset, 0, 0};
+    ifStmt->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_IF, "Expected 'if'");
     ifStmt->condition = parseExpression(false); // Do not allow struct literals in condition
     ifStmt->thenBranch = parseBlockStatement();
@@ -330,7 +636,7 @@ std::unique_ptr<StmtNode> Parser::parseIfStatement() {
 
 std::unique_ptr<StmtNode> Parser::parseWhileStatement() {
     auto whileStmt = std::make_unique<WhileStmtNode>();
-    whileStmt->loc = SourceLocation{current.byteOffset, 0, 0};
+    whileStmt->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_WHILE, "Expected 'while'");
     whileStmt->condition = parseExpression(false); // No struct literals
     whileStmt->body = parseBlockStatement();
@@ -339,22 +645,43 @@ std::unique_ptr<StmtNode> Parser::parseWhileStatement() {
 
 std::unique_ptr<StmtNode> Parser::parseForStatement() {
     auto forStmt = std::make_unique<ForStmtNode>();
-    forStmt->loc = SourceLocation{current.byteOffset, 0, 0};
+    forStmt->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_FOR, "Expected 'for'");
     consume(TokenType::L_PAREN, "Expected '(' after 'for'");
-    Token ident = consume(TokenType::IDENTIFIER, "Expected loop variable");
-    forStmt->bindingName = ident.text;
-    consume(TokenType::KW_IN, "Expected 'in' after loop variable");
-    forStmt->iterable = parseExpression(true);
-    consume(TokenType::R_PAREN, "Expected ')' after for condition");
+
+    if (current.type == TokenType::KW_DEC || current.type == TokenType::KW_CONST || current.type == TokenType::SEMI) {
+        forStmt->kind = ForKind::CStyle;
+        if (current.type != TokenType::SEMI) {
+            forStmt->init = parseDeclaration();
+        } else {
+            advance();
+        }
+        
+        if (current.type != TokenType::SEMI) {
+            forStmt->cond = parseExpression(false);
+        }
+        consume(TokenType::SEMI, "Expected ';' after for condition");
+        
+        if (current.type != TokenType::R_PAREN) {
+            forStmt->step = parseExpression(false);
+        }
+        consume(TokenType::R_PAREN, "Expected ')' after for update");
+    } else {
+        Token ident = consume(TokenType::IDENTIFIER, "Expected loop variable");
+        forStmt->bindingName = ident.text;
+        consume(TokenType::KW_IN, "Expected 'in' after loop variable");
+        forStmt->iterable = parseExpression(true);
+        consume(TokenType::R_PAREN, "Expected ')' after for condition");
+        forStmt->kind = ForKind::ForEach;
+    }
+
     forStmt->body = parseBlockStatement();
-    forStmt->kind = ForKind::ForEach;
     return forStmt;
 }
 
 std::unique_ptr<StmtNode> Parser::parseReturnStatement() {
     auto retStmt = std::make_unique<ReturnStmtNode>();
-    retStmt->loc = SourceLocation{current.byteOffset, 0, 0};
+    retStmt->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_RETURN, "Expected 'return'");
     if (!check(TokenType::SEMI)) retStmt->value = parseExpression();
     consume(TokenType::SEMI, "Expected ';' after return value");
@@ -363,7 +690,7 @@ std::unique_ptr<StmtNode> Parser::parseReturnStatement() {
 
 std::unique_ptr<StmtNode> Parser::parseBreakStatement() {
     auto stmt = std::make_unique<BreakStmtNode>();
-    stmt->loc = SourceLocation{current.byteOffset, 0, 0};
+    stmt->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_BREAK, "Expected 'break'");
     consume(TokenType::SEMI, "Expected ';' after break");
     return stmt;
@@ -371,7 +698,7 @@ std::unique_ptr<StmtNode> Parser::parseBreakStatement() {
 
 std::unique_ptr<StmtNode> Parser::parseContinueStatement() {
     auto stmt = std::make_unique<ContinueStmtNode>();
-    stmt->loc = SourceLocation{current.byteOffset, 0, 0};
+    stmt->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_CONTINUE, "Expected 'continue'");
     consume(TokenType::SEMI, "Expected ';' after continue");
     return stmt;
@@ -386,28 +713,55 @@ std::unique_ptr<StmtNode> Parser::parsePrintStatement() {
     return stmt;
 }
 
+std::unique_ptr<StmtNode> Parser::parseUnsafeStatement() {
+    auto stmt = std::make_unique<UnsafeStmtNode>();
+    stmt->loc = SourceLocation::fromOffset(current.byteOffset);
+    consume(TokenType::KW_UNSAFE, "Expected 'unsafe'");
+    stmt->body = parseBlockStatement();
+    return stmt;
+}
+
+std::unique_ptr<StmtNode> Parser::parseComptimeStatement() {
+    auto stmt = std::make_unique<ComptimeStmtNode>();
+    stmt->loc = SourceLocation::fromOffset(current.byteOffset);
+    consume(TokenType::KW_COMPTIME, "Expected 'comptime'");
+    stmt->body = parseBlockStatement();
+    return stmt;
+}
+
 // ==========================================
 // TYPE PARSING
 // ==========================================
 
 std::unique_ptr<TypeNode> Parser::parseType() {
+    if (match(TokenType::BANG)) {
+        auto node = std::make_unique<NeverTypeNode>();
+        node->loc = SourceLocation::fromOffset(current.byteOffset);
+        return node;
+    }
+    if (match(TokenType::KW_DYN)) {
+        auto node = std::make_unique<TraitObjectTypeNode>();
+        node->loc = SourceLocation::fromOffset(current.byteOffset);
+        node->trait = parseNamedType();
+        return node;
+    }
     if (match(TokenType::MULTIPLY)) {
         auto node = std::make_unique<PointerTypeNode>();
-        node->loc = SourceLocation{current.byteOffset, 0, 0};
+        node->loc = SourceLocation::fromOffset(current.byteOffset);
         node->isMutable = match(TokenType::KW_RW);
         node->inner = parseType();
         return node;
     }
     if (match(TokenType::BIT_AND)) {
         auto node = std::make_unique<ReferenceTypeNode>();
-        node->loc = SourceLocation{current.byteOffset, 0, 0};
+        node->loc = SourceLocation::fromOffset(current.byteOffset);
         node->isMutable = match(TokenType::KW_RW);
         node->inner = parseType();
         return node;
     }
     if (match(TokenType::L_BRACKET)) {
         auto node = std::make_unique<ArrayTypeNode>();
-        node->loc = SourceLocation{current.byteOffset, 0, 0};
+        node->loc = SourceLocation::fromOffset(current.byteOffset);
         node->elementType = parseType();
         if (match(TokenType::COMMA)) {
             node->size = parseExpression(true);
@@ -417,7 +771,7 @@ std::unique_ptr<TypeNode> Parser::parseType() {
     }
     if (match(TokenType::L_PAREN)) {
         auto node = std::make_unique<TupleTypeNode>();
-        node->loc = SourceLocation{current.byteOffset, 0, 0};
+        node->loc = SourceLocation::fromOffset(current.byteOffset);
         if (!check(TokenType::R_PAREN)) {
             do {
                 node->elements.push_back(parseType());
@@ -429,31 +783,36 @@ std::unique_ptr<TypeNode> Parser::parseType() {
     if (check(TokenType::BUILTIN_TYPE)) {
         Token tok = consume(TokenType::BUILTIN_TYPE, "Expected builtin type");
         auto type = std::make_unique<BuiltinTypeNode>();
-        type->loc = SourceLocation{tok.byteOffset, 0, 0};
+        type->loc = SourceLocation::fromOffset(tok.byteOffset);
         type->kind = tok.builtinKind;
         return type;
     }
-    if (check(TokenType::IDENTIFIER)) return parseNamedType();
+    if (check(TokenType::IDENTIFIER) || check(TokenType::KW_SELF_TYP)) return parseNamedType();
     
-    diag.error(SourceLocation{current.byteOffset, 0, 0}, "Expected a type");
+    std::cerr << "[DEBUG] parseType failed at byte " << current.byteOffset << " token " << (int)current.type << " text: " << std::string(current.text) << "\n";
+    diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected a type");
     throw ParseError();
 }
 
 std::unique_ptr<TypeNode> Parser::parseNamedType() {
     auto node = std::make_unique<NamedTypeNode>();
-    node->loc = SourceLocation{current.byteOffset, 0, 0};
+    node->loc = SourceLocation::fromOffset(current.byteOffset);
     
     do {
-        Token idTok = consume(TokenType::IDENTIFIER, "Expected identifier in type path");
+        Token idTok = current;
+        if (match(TokenType::IDENTIFIER) || match(TokenType::KW_SELF_TYP)) {
+            // consumed
+        } else {
+            diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected identifier or Self in type path");
+            throw ParseError();
+        }
         node->segments.push_back(idTok.text);
         
-        if (match(TokenType::GENERIC_START)) {
-            if (!check(TokenType::GREATER_THAN)) {
-                do {
-                    node->genericArgs.push_back(parseType());
-                } while (match(TokenType::COMMA));
+        if (check(TokenType::GENERIC_START)) {
+            auto args = parseGenericArgs();
+            for (auto& arg : args) {
+                node->genericArgs.push_back(std::move(arg));
             }
-            consume(TokenType::GREATER_THAN, "Expected '>' after generic arguments");
         }
     } while (match(TokenType::COLON_COLON));
     
@@ -679,7 +1038,7 @@ std::unique_ptr<ExprNode> Parser::parseUnary(bool allowStructLiteral) {
         Token op = current;
         advance();
         auto expr = std::make_unique<UnaryExpr>();
-        expr->loc = SourceLocation{op.byteOffset, 0, 0};
+        expr->loc = SourceLocation::fromOffset(op.byteOffset);
         if (op.type == TokenType::MINUS) expr->op = UnaryOp::Neg;
         else if (op.type == TokenType::BANG) expr->op = UnaryOp::Not;
         else if (op.type == TokenType::BIT_NOT) expr->op = UnaryOp::BitNot;
@@ -697,15 +1056,39 @@ std::unique_ptr<ExprNode> Parser::parsePostfix(bool allowStructLiteral) {
     auto expr = parsePrimary(allowStructLiteral);
     
     while (true) {
+        if (match(TokenType::QUESTION)) {
+            auto tryCall = std::make_unique<MethodCallExpr>();
+            tryCall->loc = SourceLocation::fromOffset(current.byteOffset);
+            tryCall->object = std::move(expr);
+            tryCall->methodName = "__try";
+            expr = std::move(tryCall);
+            continue;
+        }
+        if (match(TokenType::PLUS_PLUS)) {
+            auto unExpr = std::make_unique<UnaryExpr>();
+            unExpr->loc = SourceLocation::fromOffset(current.byteOffset);
+            unExpr->op = UnaryOp::PostInc;
+            unExpr->operand = std::move(expr);
+            expr = std::move(unExpr);
+            continue;
+        }
+        if (match(TokenType::MINUS_MINUS)) {
+            auto unExpr = std::make_unique<UnaryExpr>();
+            unExpr->loc = SourceLocation::fromOffset(current.byteOffset);
+            unExpr->op = UnaryOp::PostDec;
+            unExpr->operand = std::move(expr);
+            expr = std::move(unExpr);
+            continue;
+        }
         if (match(TokenType::L_PAREN)) {
             // Function Call
             auto callExpr = std::make_unique<CallExpr>();
-            callExpr->loc = SourceLocation{current.byteOffset, 0, 0};
+            callExpr->loc = SourceLocation::fromOffset(current.byteOffset);
             callExpr->callee = std::move(expr);
             if (!check(TokenType::R_PAREN)) {
                 do {
                     CallArgNode arg;
-                    arg.loc = SourceLocation{current.byteOffset, 0, 0};
+                    arg.loc = SourceLocation::fromOffset(current.byteOffset);
                     if (check(TokenType::IDENTIFIER) && peek.type == TokenType::COLON) {
                         Token idTok = consume(TokenType::IDENTIFIER, "");
                         consume(TokenType::COLON, "");
@@ -720,27 +1103,41 @@ std::unique_ptr<ExprNode> Parser::parsePostfix(bool allowStructLiteral) {
         } else if (match(TokenType::L_BRACKET)) {
             // Array Indexing
             auto idxExpr = std::make_unique<IndexExpr>();
-            idxExpr->loc = SourceLocation{current.byteOffset, 0, 0};
+            idxExpr->loc = SourceLocation::fromOffset(current.byteOffset);
             idxExpr->base = std::move(expr);
             idxExpr->index = parseExpression(true);
             consume(TokenType::R_BRACKET, "Expected ']' after index");
             expr = std::move(idxExpr);
         } else if (match(TokenType::DOT)) {
+            if (match(TokenType::KW_AWAIT)) {
+                auto awaitExpr = std::make_unique<AwaitExpr>();
+                awaitExpr->loc = SourceLocation::fromOffset(current.byteOffset);
+                awaitExpr->expr = std::move(expr);
+                expr = std::move(awaitExpr);
+                continue;
+            }
             // Member Access or Method Call
-            Token memberTok = consume(TokenType::IDENTIFIER, "Expected member name");
+            Token memberTok;
+            if (current.type == TokenType::IDENTIFIER || current.type == TokenType::KW_PRINT) {
+                memberTok = current;
+                advance();
+            } else {
+                diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected member name");
+                throw ParseError();
+            }
             
             // Check for Generic Arguments like `a.foo::<I32>()`? We don't have turbofish yet, but we might.
             // Let's assume standard `a.foo()` for now.
             if (match(TokenType::L_PAREN)) {
                 auto methodCall = std::make_unique<MethodCallExpr>();
-                methodCall->loc = SourceLocation{current.byteOffset, 0, 0};
+                methodCall->loc = SourceLocation::fromOffset(current.byteOffset);
                 methodCall->object = std::move(expr);
                 methodCall->methodName = memberTok.text;
                 
                 if (!check(TokenType::R_PAREN)) {
                     do {
                         CallArgNode arg;
-                        arg.loc = SourceLocation{current.byteOffset, 0, 0};
+                        arg.loc = SourceLocation::fromOffset(current.byteOffset);
                         if (check(TokenType::IDENTIFIER) && peek.type == TokenType::COLON) {
                             Token idTok = consume(TokenType::IDENTIFIER, "");
                             consume(TokenType::COLON, "");
@@ -754,7 +1151,7 @@ std::unique_ptr<ExprNode> Parser::parsePostfix(bool allowStructLiteral) {
                 expr = std::move(methodCall);
             } else {
                 auto memExpr = std::make_unique<MemberExpr>();
-                memExpr->loc = SourceLocation{current.byteOffset, 0, 0};
+                memExpr->loc = SourceLocation::fromOffset(current.byteOffset);
                 memExpr->object = std::move(expr);
                 memExpr->member = memberTok.text;
                 expr = std::move(memExpr);
@@ -764,13 +1161,13 @@ std::unique_ptr<ExprNode> Parser::parsePostfix(bool allowStructLiteral) {
             // This is only valid if `expr` is an IdentifierExpr representing a path.
             if (auto idExpr = dynamic_cast<IdentifierExpr*>(expr.get())) {
                 auto structInit = std::make_unique<StructInitExpr>();
-                structInit->loc = SourceLocation{current.byteOffset, 0, 0};
+                structInit->loc = SourceLocation::fromOffset(current.byteOffset);
                 structInit->path = idExpr->segments;
                 
                 consume(TokenType::L_BRACE, "");
                 while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {
                     FieldInitNode fieldInit;
-                    fieldInit.loc = SourceLocation{current.byteOffset, 0, 0};
+                    fieldInit.loc = SourceLocation::fromOffset(current.byteOffset);
                     Token fName = consume(TokenType::IDENTIFIER, "Expected field name");
                     fieldInit.name = fName.text;
                     consume(TokenType::COLON, "Expected ':' after field name");
@@ -793,18 +1190,28 @@ std::unique_ptr<ExprNode> Parser::parsePostfix(bool allowStructLiteral) {
 
 std::unique_ptr<ExprNode> Parser::parseValuePath() {
     auto ident = std::make_unique<IdentifierExpr>();
-    ident->loc = SourceLocation{current.byteOffset, 0, 0};
+    ident->loc = SourceLocation::fromOffset(current.byteOffset);
     do {
-        Token idTok = consume(TokenType::IDENTIFIER, "Expected identifier in path");
+        Token idTok;
+        if (match(TokenType::KW_SELF_TYP)) {
+            idTok = prev;
+        } else if (match(TokenType::KW_SELF_VAL)) {
+            idTok = prev;
+        } else if (current.type == TokenType::IDENTIFIER || current.type == TokenType::KW_PRINT) {
+            idTok = current;
+            advance();
+        } else {
+            std::cerr << "[DEBUG] parseValuePath failed at byte " << current.byteOffset << " token " << (int)current.type << " text: " << std::string(current.text) << "\n";
+            diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected identifier in value path");
+            throw ParseError();
+        }
         ident->segments.push_back(idTok.text);
         
-        if (match(TokenType::GENERIC_START)) {
-            if (!check(TokenType::GREATER_THAN)) {
-                do {
-                    ident->genericArgs.push_back(parseType());
-                } while (match(TokenType::COMMA));
+        if (check(TokenType::GENERIC_START)) {
+            auto args = parseGenericArgs();
+            for (auto& arg : args) {
+                ident->genericArgs.push_back(std::move(arg));
             }
-            consume(TokenType::GREATER_THAN, "Expected '>' after generic arguments");
         }
     } while (match(TokenType::COLON_COLON));
     
@@ -813,14 +1220,14 @@ std::unique_ptr<ExprNode> Parser::parseValuePath() {
 
 std::unique_ptr<ExprNode> Parser::parseMatchExpr() {
     auto matchExpr = std::make_unique<MatchExpr>();
-    matchExpr->loc = SourceLocation{current.byteOffset, 0, 0};
+    matchExpr->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::KW_MATCH, "Expected 'match'");
     matchExpr->subject = parseExpression(false); // No struct literals in match subject
     
     consume(TokenType::L_BRACE, "Expected '{' for match body");
     while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {
         MatchArmNode arm;
-        arm.loc = SourceLocation{current.byteOffset, 0, 0};
+        arm.loc = SourceLocation::fromOffset(current.byteOffset);
         arm.pattern = parsePattern();
         consume(TokenType::ARROW, "Expected '->' after pattern");
         
@@ -832,7 +1239,7 @@ std::unique_ptr<ExprNode> Parser::parseMatchExpr() {
             auto stmt = std::make_unique<ExprStmtNode>();
             stmt->expr = std::move(armExpr);
             arm.body = std::move(stmt);
-            consume(TokenType::COMMA, "Expected ',' after match arm expression");
+            match(TokenType::COMMA); // Optional trailing comma
         }
         matchExpr->arms.push_back(std::move(arm));
     }
@@ -879,13 +1286,13 @@ std::unique_ptr<PatternNode> Parser::parsePattern() {
         return litPat;
     }
     
-    diag.error(SourceLocation{current.byteOffset, 0, 0}, "Expected a pattern (e.g., literal, identifier, or '_') in match arm");
+    diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected a pattern (e.g., literal, identifier, or '_') in match arm");
     throw ParseError();
 }
 
 std::unique_ptr<ExprNode> Parser::parseLambdaExpr() {
     auto lambda = std::make_unique<LambdaExpr>();
-    lambda->loc = SourceLocation{current.byteOffset, 0, 0};
+    lambda->loc = SourceLocation::fromOffset(current.byteOffset);
     consume(TokenType::BIT_OR, "Expected '|'"); // Note: we use BIT_OR for lambda. Lexer might tokenize it as `|`.
     
     if (!check(TokenType::BIT_OR)) {
@@ -917,27 +1324,47 @@ std::unique_ptr<ExprNode> Parser::parseLambdaExpr() {
 }
 
 std::unique_ptr<ExprNode> Parser::parsePrimary(bool allowStructLiteral) {
-    if (match(TokenType::INTEGER_LITERAL)) {
+    if (check(TokenType::INTEGER_LITERAL)) { std::string_view text = current.text; advance();
         auto lit = std::make_unique<LiteralExpr>();
-        lit->kind = LiteralKind::Integer;
+        lit->kind = LiteralKind::Integer; lit->rawText = text;
         return lit;
     }
-    if (match(TokenType::FLOAT_LITERAL)) {
+    if (check(TokenType::FLOAT_LITERAL)) { std::string_view text = current.text; advance();
         auto lit = std::make_unique<LiteralExpr>();
-        lit->kind = LiteralKind::Float;
+        lit->kind = LiteralKind::Float; lit->rawText = text;
         return lit;
     }
-    if (match(TokenType::STRING_LITERAL)) {
+    if (check(TokenType::STRING_LITERAL)) { std::string_view text = current.text; advance();
         auto lit = std::make_unique<LiteralExpr>();
-        lit->kind = LiteralKind::Str;
+        lit->kind = LiteralKind::Str; lit->rawText = text;
         return lit;
     }
-    if (match(TokenType::KW_TRUE) || match(TokenType::KW_FALSE)) {
+    if (check(TokenType::RAW_STRING_LITERAL)) { std::string_view text = current.text; advance();
         auto lit = std::make_unique<LiteralExpr>();
-        lit->kind = LiteralKind::Bool;
+        lit->kind = LiteralKind::RawStr;
         return lit;
     }
-    if (check(TokenType::IDENTIFIER)) {
+    if (match(TokenType::BYTE_LITERAL)) {
+        auto lit = std::make_unique<LiteralExpr>();
+        lit->kind = LiteralKind::Byte;
+        return lit;
+    }
+    if (match(TokenType::BYTE_STRING_LITERAL)) {
+        auto lit = std::make_unique<LiteralExpr>();
+        lit->kind = LiteralKind::ByteStr;
+        return lit;
+    }
+    if (check(TokenType::CHAR_LITERAL)) { std::string_view text = current.text; advance();
+        auto lit = std::make_unique<LiteralExpr>();
+        lit->kind = LiteralKind::Char; lit->rawText = text;
+        return lit;
+    }
+    if (check(TokenType::KW_TRUE) || check(TokenType::KW_FALSE)) { std::string_view text = current.text; advance();
+        auto lit = std::make_unique<LiteralExpr>();
+        lit->kind = LiteralKind::Bool; lit->rawText = text;
+        return lit;
+    }
+    if (check(TokenType::IDENTIFIER) || check(TokenType::KW_SELF_VAL)) {
         return parseValuePath();
     }
     if (check(TokenType::KW_MATCH)) {
@@ -946,13 +1373,62 @@ std::unique_ptr<ExprNode> Parser::parsePrimary(bool allowStructLiteral) {
     if (check(TokenType::BIT_OR)) {
         return parseLambdaExpr();
     }
+    if (match(TokenType::L_BRACKET)) {
+        auto arr = std::make_unique<ArrayLiteralExpr>();
+        arr->loc = SourceLocation::fromOffset(current.byteOffset);
+        if (!check(TokenType::R_BRACKET)) {
+            do {
+                if (check(TokenType::DOT_DOT_DOT)) {
+                    // Spread/variadic placeholder - skip for now
+                    advance();
+                    break;
+                }
+                arr->elements.push_back(parseExpression(true));
+            } while (match(TokenType::COMMA) && !check(TokenType::R_BRACKET));
+        }
+        consume(TokenType::R_BRACKET, "Expected ']' after array literal");
+        return arr;
+    }
     if (match(TokenType::L_PAREN)) {
+        if (match(TokenType::R_PAREN)) {
+            auto tup = std::make_unique<TupleLiteralExpr>();
+            tup->loc = SourceLocation::fromOffset(current.byteOffset);
+            return tup;
+        }
         auto expr = parseExpression(true);
+        if (match(TokenType::COMMA)) {
+            auto tup = std::make_unique<TupleLiteralExpr>();
+            tup->loc = SourceLocation::fromOffset(current.byteOffset);
+            tup->elements.push_back(std::move(expr));
+            if (!check(TokenType::R_PAREN)) {
+                do {
+                    tup->elements.push_back(parseExpression(true));
+                } while (match(TokenType::COMMA) && !check(TokenType::R_PAREN));
+            }
+            consume(TokenType::R_PAREN, "Expected ')' after tuple elements");
+            return tup;
+        }
         consume(TokenType::R_PAREN, "Expected ')' after expression");
         return expr;
     }
+    if (match(TokenType::KW_SIZEOF)) {
+        auto soe = std::make_unique<SizeofExpr>();
+        soe->loc = SourceLocation::fromOffset(current.byteOffset);
+        consume(TokenType::L_PAREN, "Expected '(' after sizeof");
+        soe->targetType = parseType();
+        consume(TokenType::R_PAREN, "Expected ')' after sizeof type");
+        return soe;
+    }
+    if (match(TokenType::KW_ALIGNOF)) {
+        auto aoe = std::make_unique<AlignofExpr>();
+        aoe->loc = SourceLocation::fromOffset(current.byteOffset);
+        consume(TokenType::L_PAREN, "Expected '(' after alignof");
+        aoe->targetType = parseType();
+        consume(TokenType::R_PAREN, "Expected ')' after alignof type");
+        return aoe;
+    }
 
-    diag.error(SourceLocation{current.byteOffset, 0, 0}, "Expected expression (e.g., literal, identifier, or '(')");
+    diag.error(SourceLocation::fromOffset(current.byteOffset), "Expected expression (e.g., literal, identifier, or '(')");
     throw ParseError();
 }
 

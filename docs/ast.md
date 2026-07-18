@@ -1,4 +1,4 @@
-# fdlang AST v1.0 — Đặc tả chính thức
+# mellis AST v1.0 — Đặc tả chính thức
 
 > **Trạng thái:** Draft v2 — chờ freeze
 > **Phụ thuộc:** `grammar.md` v1.0 (frozen)
@@ -818,14 +818,14 @@ public:
 [1] Freeze ast.md (file nay)
     |
 [2] AST headers C++
-    include/fdlang/AST/
+    include/mellis/AST/
         ASTNode.h       — ASTNode, ItemNode, DeclNode, StmtNode, ExprNode
         DeclNode.h      — tat ca DeclNode subclasses + GenericParamNode
         StmtNode.h      — tat ca StmtNode subclasses
         ExprNode.h      — tat ca ExprNode subclasses + LiteralExpr + enums
         TypeNode.h      — tat ca TypeNode subclasses
         PatternNode.h   — tat ca PatternNode subclasses
-    include/fdlang/FrontEnd/
+    include/mellis/FrontEnd/
         ASTVisitor.h    — ASTVisitor + TypeVisitor + PatternVisitor
     |
 [3] Parser v1.0

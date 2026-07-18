@@ -1,0 +1,374 @@
+#include "mellis/AST/DeclNode.h"
+#include "mellis/AST/ExprNode.h"
+#include "mellis/AST/TypeNode.h"
+#include "mellis/AST/StmtNode.h"
+
+#include "mellis/AST/StmtNode.h"
+
+namespace fl {
+
+static std::vector<AnnotationNode> cloneAnnotations(const std::vector<AnnotationNode>& src) {
+    std::vector<AnnotationNode> dst;
+    for (const auto& a : src) {
+        AnnotationNode an;
+        an.name = a.name;
+        an.line = a.line;
+        an.column = a.column;
+        for (const auto& arg : a.args) {
+            AnnotationArg newArg;
+            newArg.key = arg.key;
+            if (arg.value) {
+                newArg.value = arg.value->cloneAs<ExprNode>();
+            }
+            an.args.push_back(std::move(newArg));
+        }
+        dst.push_back(std::move(an));
+    }
+    return dst;
+}
+
+// ==========================================
+// DeclNode Clones
+// ==========================================
+
+ASTNode* VarDeclNode::cloneImpl() const {
+    auto copy = new VarDeclNode();
+    copy->loc = this->loc;
+    copy->annotations = cloneAnnotations(this->annotations);
+    copy->isExported = this->isExported;
+    copy->name = this->name;
+    copy->isMutable = this->isMutable;
+    if (this->typeAnnot) {
+        copy->typeAnnot = this->typeAnnot->cloneAs<TypeNode>();
+    }
+    if (this->initializer) {
+        copy->initializer = this->initializer->cloneAs<ExprNode>();
+    }
+    return copy;
+}
+
+ASTNode* ParamDeclNode::cloneImpl() const {
+    auto copy = new ParamDeclNode();
+    copy->loc = this->loc;
+    copy->annotations = cloneAnnotations(this->annotations);
+    copy->isExported = this->isExported;
+    copy->name = this->name;
+    copy->isVariadic = this->isVariadic;
+    copy->isSelf = this->isSelf;
+    if (this->type) {
+        copy->type = this->type->cloneAs<TypeNode>();
+    }
+    return copy;
+}
+
+ASTNode* FunctionDeclNode::cloneImpl() const {
+    auto copy = new FunctionDeclNode();
+    copy->loc = this->loc;
+    copy->annotations = cloneAnnotations(this->annotations);
+    copy->isExported = this->isExported;
+    copy->name = this->name;
+    copy->isAsync = this->isAsync;
+    copy->isComptime = this->isComptime;
+    copy->isVariadic = this->isVariadic;
+    
+    // Note: genericParams are usually dropped during monomorphization,
+    // but if we clone them verbatim, we do it here:
+    for (const auto& gp : this->genericParams) {
+        GenericParamNode gpCopy;
+        gpCopy.loc = gp.loc;
+        gpCopy.name = gp.name;
+        gpCopy.symbolId = gp.symbolId;
+        for (const auto& b : gp.bounds) {
+            gpCopy.bounds.push_back(b->cloneAs<TypeNode>());
+        }
+        copy->genericParams.push_back(std::move(gpCopy));
+    }
+    
+    for (const auto& p : this->params) {
+        copy->params.push_back(p->cloneAs<ParamDeclNode>());
+    }
+    if (this->returnType) {
+        copy->returnType = this->returnType->cloneAs<TypeNode>();
+    }
+    if (this->body) {
+        copy->body = this->body->cloneAs<BlockStmtNode>();
+    }
+    return copy;
+}
+
+ASTNode* StructFieldNode::cloneImpl() const {
+    auto copy = new StructFieldNode();
+    copy->loc = this->loc;
+    copy->name = this->name;
+    if (this->type) {
+        copy->type = this->type->cloneAs<TypeNode>();
+    }
+    return copy;
+}
+
+ASTNode* StructDeclNode::cloneImpl() const {
+    auto copy = new StructDeclNode();
+    copy->loc = this->loc;
+    copy->annotations = cloneAnnotations(this->annotations);
+    copy->isExported = this->isExported;
+    copy->name = this->name;
+    
+    for (const auto& gp : this->genericParams) {
+        GenericParamNode gpCopy;
+        gpCopy.loc = gp.loc;
+        gpCopy.name = gp.name;
+        gpCopy.symbolId = gp.symbolId;
+        for (const auto& b : gp.bounds) {
+            gpCopy.bounds.push_back(b->cloneAs<TypeNode>());
+        }
+        copy->genericParams.push_back(std::move(gpCopy));
+    }
+    
+    for (const auto& f : this->fields) {
+        copy->fields.push_back(f->cloneAs<StructFieldNode>());
+    }
+    return copy;
+}
+
+// ==========================================
+// StmtNode Clones
+// ==========================================
+
+ASTNode* BlockStmtNode::cloneImpl() const {
+    auto copy = new BlockStmtNode();
+    copy->loc = this->loc;
+    copy->bodyScopeId = kInvalidSymbolID; // RESET so Resolver creates a new scope!
+    for (const auto& s : this->body) {
+        copy->body.push_back(s->cloneAs<ItemNode>());
+    }
+    return copy;
+}
+
+ASTNode* ExprStmtNode::cloneImpl() const {
+    auto copy = new ExprStmtNode();
+    copy->loc = this->loc;
+    if (this->expr) {
+        copy->expr = this->expr->cloneAs<ExprNode>();
+    }
+    return copy;
+}
+
+ASTNode* ReturnStmtNode::cloneImpl() const {
+    auto copy = new ReturnStmtNode();
+    copy->loc = this->loc;
+    if (this->value) {
+        copy->value = this->value->cloneAs<ExprNode>();
+    }
+    return copy;
+}
+
+// ==========================================
+// ExprNode Clones
+// ==========================================
+
+ASTNode* IdentifierExpr::cloneImpl() const {
+    auto copy = new IdentifierExpr();
+    copy->loc = this->loc;
+    copy->inferredType = this->inferredType;
+    copy->valueCategory = this->valueCategory;
+    copy->isConstant = this->isConstant;
+    
+    copy->segments = this->segments;
+    for (const auto& arg : this->genericArgs) {
+        copy->genericArgs.push_back(arg->cloneAs<TypeNode>());
+    }
+    return copy;
+}
+
+ASTNode* StructInitExpr::cloneImpl() const {
+    auto copy = new StructInitExpr();
+    copy->loc = this->loc;
+    copy->inferredType = this->inferredType;
+    copy->valueCategory = this->valueCategory;
+    copy->isConstant = this->isConstant;
+    
+    copy->path = this->path;
+    copy->structId = this->structId;
+    for (const auto& arg : this->genericArgs) {
+        copy->genericArgs.push_back(arg->cloneAs<TypeNode>());
+    }
+    for (const auto& f : this->fields) {
+        FieldInitNode fin;
+        fin.loc = f.loc;
+        fin.name = f.name;
+        fin.value = f.value->cloneAs<ExprNode>();
+        copy->fields.push_back(std::move(fin));
+    }
+    return copy;
+}
+
+ASTNode* CallExpr::cloneImpl() const {
+    auto copy = new CallExpr();
+    copy->loc = this->loc;
+    copy->inferredType = this->inferredType;
+    copy->valueCategory = this->valueCategory;
+    copy->isConstant = this->isConstant;
+    
+    if (this->callee) {
+        copy->callee = this->callee->cloneAs<ExprNode>();
+    }
+    for (const auto& arg : this->genericArgs) {
+        copy->genericArgs.push_back(arg->cloneAs<TypeNode>());
+    }
+    for (const auto& a : this->args) {
+        CallArgNode ca;
+        ca.loc = a.loc;
+        ca.label = a.label;
+        ca.value = a.value->cloneAs<ExprNode>();
+        copy->args.push_back(std::move(ca));
+    }
+    return copy;
+}
+
+ASTNode* MethodCallExpr::cloneImpl() const {
+    auto copy = new MethodCallExpr();
+    copy->loc = this->loc;
+    copy->inferredType = this->inferredType;
+    copy->valueCategory = this->valueCategory;
+    copy->isConstant = this->isConstant;
+    
+    copy->methodName = this->methodName;
+    if (this->object) {
+        copy->object = this->object->cloneAs<ExprNode>();
+    }
+    for (const auto& arg : this->genericArgs) {
+        copy->genericArgs.push_back(arg->cloneAs<TypeNode>());
+    }
+    for (const auto& a : this->args) {
+        CallArgNode ca;
+        ca.loc = a.loc;
+        ca.label = a.label;
+        ca.value = a.value->cloneAs<ExprNode>();
+        copy->args.push_back(std::move(ca));
+    }
+    return copy;
+}
+
+// ==========================================
+// TypeNode Clones
+// ==========================================
+
+ASTNode* NamedTypeNode::cloneImpl() const {
+    auto copy = new NamedTypeNode();
+    copy->loc = this->loc;
+    copy->segments = this->segments;
+    copy->symbolId = this->symbolId;
+    for (const auto& arg : this->genericArgs) {
+        copy->genericArgs.push_back(arg->cloneAs<TypeNode>());
+    }
+    return copy;
+}
+
+ASTNode* ReferenceTypeNode::cloneImpl() const {
+    auto copy = new ReferenceTypeNode();
+    copy->loc = this->loc;
+    copy->isMutable = this->isMutable;
+    if (this->inner) {
+        copy->inner = this->inner->cloneAs<TypeNode>();
+    }
+    return copy;
+}
+
+ASTNode* PointerTypeNode::cloneImpl() const {
+    auto copy = new PointerTypeNode();
+    copy->loc = this->loc;
+    copy->isMutable = this->isMutable;
+    if (this->inner) {
+        copy->inner = this->inner->cloneAs<TypeNode>();
+    }
+    return copy;
+}
+
+ASTNode* ArrayTypeNode::cloneImpl() const {
+    auto copy = new ArrayTypeNode();
+    copy->loc = this->loc;
+    if (this->elementType) {
+        copy->elementType = this->elementType->cloneAs<TypeNode>();
+    }
+    if (this->size) {
+        copy->size = this->size->cloneAs<ExprNode>();
+    }
+    return copy;
+}
+
+ASTNode* TupleTypeNode::cloneImpl() const {
+    auto copy = new TupleTypeNode();
+    copy->loc = this->loc;
+    for (const auto& e : this->elements) {
+        copy->elements.push_back(e->cloneAs<TypeNode>());
+    }
+    return copy;
+}
+
+ASTNode* FunctionTypeNode::cloneImpl() const {
+    auto copy = new FunctionTypeNode();
+    copy->loc = this->loc;
+    for (const auto& p : this->params) {
+        copy->params.push_back(p->cloneAs<TypeNode>());
+    }
+    if (this->returnType) {
+        copy->returnType = this->returnType->cloneAs<TypeNode>();
+    }
+    return copy;
+}
+ASTNode* TraitDeclNode::cloneImpl() const {
+    auto copy = new TraitDeclNode();
+    copy->loc = this->loc;
+    copy->annotations = cloneAnnotations(this->annotations);
+    copy->isExported = this->isExported;
+    copy->name = this->name;
+    
+    for (const auto& gp : this->genericParams) {
+        GenericParamNode gpCopy;
+        gpCopy.loc = gp.loc;
+        gpCopy.name = gp.name;
+        gpCopy.symbolId = gp.symbolId;
+        for (const auto& b : gp.bounds) {
+            gpCopy.bounds.push_back(b->cloneAs<TypeNode>());
+        }
+        copy->genericParams.push_back(std::move(gpCopy));
+    }
+    
+    for (const auto& m : this->methods) {
+        copy->methods.push_back(m->cloneAs<FunctionDeclNode>());
+    }
+    return copy;
+}
+
+ASTNode* ImplDeclNode::cloneImpl() const {
+    auto copy = new ImplDeclNode();
+    copy->loc = this->loc;
+    copy->annotations = cloneAnnotations(this->annotations);
+    copy->isExported = this->isExported;
+    
+    for (const auto& gp : this->genericParams) {
+        GenericParamNode gpCopy;
+        gpCopy.loc = gp.loc;
+        gpCopy.name = gp.name;
+        gpCopy.symbolId = gp.symbolId;
+        for (const auto& b : gp.bounds) {
+            gpCopy.bounds.push_back(b->cloneAs<TypeNode>());
+        }
+        copy->genericParams.push_back(std::move(gpCopy));
+    }
+    
+    if (this->selfType) {
+        copy->selfType = this->selfType->cloneAs<TypeNode>();
+    }
+    
+    if (this->traitType) {
+        copy->traitType = this->traitType->cloneAs<TypeNode>();
+    }
+    
+    for (const auto& m : this->methods) {
+        copy->methods.push_back(m->cloneAs<FunctionDeclNode>());
+    }
+    return copy;
+}
+
+} // namespace fl

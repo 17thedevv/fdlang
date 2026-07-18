@@ -1,8 +1,8 @@
 // =============================================================================
-// fdlang/BackEnd/ExecutableGenerator.cpp
+// mellis/BackEnd/ExecutableGenerator.cpp
 // =============================================================================
 
-#include "fdlang/BackEnd/ExecutableGenerator.h"
+#include "mellis/BackEnd/ExecutableGenerator.h"
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
@@ -69,7 +69,7 @@ bool ExecutableGenerator::generateExecutable(llvm::Module* llvmModule, const std
 
     // 3. Link Object File into Executable
     // For MVP, we hardcode the path to where CMake builds it.
-    std::vector<std::string> libs = { "build\\Release\\fdlang_rt.lib" };
+    std::vector<std::string> libs = { "build\\Release\\mellis_rt.lib" };
     return linker_.link(objPath, outputPath, libs);
 }
 

@@ -1,10 +1,10 @@
-# 📋 Trạng thái Dự án — freedomLanguage (fdlang)
+# 📋 Trạng thái Dự án — freedomLanguage (mellis)
 
 | Hạng mục | Giá trị |
 |----------|---------|
 | **Version** | `v1.0` |
 | **Branch** | `main` |
-| **Phase hiện tại** | **Phase 2 — Middle End (Type Checker đang nâng cấp)** |
+| **Phase hiện tại** | **Phase 5 — TBD** |
 | **Ngôn ngữ triển khai** | C++17 |
 | **Build system** | CMake 3.20+ |
 | **Backend** | LLVM |
@@ -30,9 +30,9 @@ Source (.fl)
 [Phase 2 — MiddleEnd]
     Resolver           ✅ hoàn chỉnh — Two-pass, scoped symbol table
     ↓
-    Type Checker       🔄 đang nâng cấp — Constraint-Based (ConstraintGenerator → UnificationEngine → TypeResolver)
+    Type Checker       ✅ hoàn chỉnh — Constraint-Based, Pattern Matching
     ↓
-    Borrow Checker     ❌ chưa có
+    Borrow Checker     ✅ hoàn chỉnh — Scope-based, Ownership, Aliasing
     ↓
     FLIR Generator     ✅ hoàn chỉnh
 
@@ -47,8 +47,8 @@ Source (.fl)
 ## 📁 Cấu trúc Thực tế (kiểm tra từ codebase)
 
 ```
-fdlang/
-├── include/fdlang/
+mellis/
+├── include/mellis/
 │   ├── Core/
 │   │   ├── FLType.h           Type system: PrimitiveType, StructType, FunctionType,
 │   │   │                      InferenceVarType, UnificationTable, TypeContext
@@ -94,7 +94,7 @@ fdlang/
 │   ├── MiddleEnd/
 │   │   ├── SymbolTable.cpp
 │   │   ├── Resolver.cpp
-│   │   ├── TypeChecker.cpp    [🔄 đang nâng cấp — Constraint-Based architecture]
+│   │   ├── TypeChecker.cpp    ✅ hoàn chỉnh
 │   │   ├── FLIR.cpp
 │   │   ├── FLIRGenerator.cpp
 │   │   └── SemanticAnalyzer.cpp  [DEPRECATED — excluded khỏi build, chờ xóa]
@@ -184,6 +184,12 @@ fdlang/
 
 ## ❌ Chưa triển khai / Cần làm tiếp
 
+### Đã hoàn thành (chờ xóa khỏi TODO)
+- **Borrow Checker**: Hoàn thiện Phase 3, xử lý Scope Unwinding.
+- **FFI & Strings**: Hoàn thiện Phase 4, hỗ trợ extern, varargs (...), C stdlib printf.
+- **TypeChecker — Pattern Matching, Statements**: Đã xử lý toàn bộ các cấu trúc phức tạp.
+
+
 ### Phase 2 — MiddleEnd (còn thiếu)
 
 | Tính năng | Mức độ ưu tiên | Ghi chú |
@@ -206,7 +212,7 @@ fdlang/
 | 2 | **`SemanticAnalyzer.cpp` deprecated** — Excluded khỏi build nhưng chưa xóa khỏi repo. | 🟡 Trung bình |
 | 3 | **`README.MD`** — Cần viết hướng dẫn build và sử dụng cho v1.0. | 🟡 Trung bình |
 | 4 | **Unused Variables** — TypeChecker chưa báo lỗi biến không dùng → FLIRGenerator sinh `%id = alloca void`. | 🟡 Trung bình |
-| 5 | **LLVM Build Mode Mismatch** — LLVM Release (`/MD`) vs fdlang Debug (`/MDd`) → link error `_ITERATOR_DEBUG_LEVEL`. Tạm thời build fdlang ở Release. | 🟡 Trung bình |
+| 5 | **LLVM Build Mode Mismatch** — LLVM Release (`/MD`) vs mellis Debug (`/MDd`) → link error `_ITERATOR_DEBUG_LEVEL`. Tạm thời build mellis ở Release. | 🟡 Trung bình |
 | 6 | **Transparent lookup C++17/MSVC** — `unordered_map::find(string_view)` cần explicit `Identifier key(name)`. Fix dài hạn: nâng C++20. | 🟢 Thấp |
 
 ---
@@ -220,10 +226,10 @@ Phase 1 — AST                   ██████████  100% ✅
 
 Phase 2 — Resolver              ██████████  100% ✅
 Phase 2 — Type System (FLType)  ██████████  100% ✅
-Phase 2 — TypeChecker Core      ████████░░   80% 🔄
+Phase 2 — TypeChecker Core      ██████████  100% ✅
 Phase 2 — TypeChecker Generics  ██░░░░░░░░   20% 🔄
 Phase 2 — TypeChecker Traits    ██░░░░░░░░   20% 🔄
-Phase 2 — Borrow Checker        ░░░░░░░░░░    0% ❌
+Phase 2 — Borrow Checker        ██████████  100% ✅
 
 Phase 2 — FLIR Generator        ██████████  100% ✅
 Phase 3 — LLVM IR Generator     ██████████  100% ✅
@@ -233,7 +239,7 @@ Diagnostic Engine               ███████░░░   70% (line/col c
 Tests                           ██████████  100% ✅
 Documentation                   ████████░░   80%
 ────────────────────────────────────────────────────
-Tổng thể v1.0                   ██████░░░░  ~60%
+Tổng thể v1.0                   ████████░░  ~80%
 ```
 
 ---
@@ -241,17 +247,10 @@ Tổng thể v1.0                   ██████░░░░  ~60%
 ## 🗺️ Thứ tự làm tiếp (theo đúng lộ trình)
 
 ```
-[Đang làm]  TypeChecker — hoàn thiện nốt các node còn thiếu
-                CallExpr, MethodCallExpr, IfStmt, WhileStmt
-                MatchExpr + Pattern binding
-                Generic parameter constraints
-                Trait method resolution qua ImplMap
+[Đang làm]  Generics & Trait Resolution
     ↓
-[Tiếp theo] Initialization Check
-                Tích hợp vào TypeChecker, xóa SemanticAnalyzer.cpp
-    ↓
-[Sau đó]    Borrow Checker
-                Ownership, borrowing, lifetime cơ bản
+[Tiếp theo] Module system (mod, export, extern)
+                Xây dựng hệ thống module, quản lý scope theo file
     ↓
 [Dài hạn]   Module system (mod, export, extern)
             StringInterner upgrade

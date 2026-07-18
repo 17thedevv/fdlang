@@ -1,8 +1,8 @@
-#include "fdlang/MiddleEnd/TypeChecker.h"
-#include "fdlang/MiddleEnd/MatchAnalyzer.h"
-#include "fdlang/MiddleEnd/Resolver.h"
-#include "fdlang/FrontEnd/Parser.h"
-#include "fdlang/FrontEnd/Lexer.h"
+#include "mellis/MiddleEnd/TypeChecker.h"
+#include "mellis/MiddleEnd/MatchAnalyzer.h"
+#include "mellis/MiddleEnd/Resolver.h"
+#include "mellis/FrontEnd/Parser.h"
+#include "mellis/FrontEnd/Lexer.h"
 #include <iostream>
 #include <cstdlib>
 
@@ -135,8 +135,8 @@ void test05_function_return() {
 void test06_struct_member() {
     auto r = runTypeChecker(R"(
         struct Point {
-            x: int_32,
-            y: int_32
+            x: int_32;
+            y: int_32;
         }
         
         fn main() {
@@ -258,7 +258,7 @@ void test18_named_arguments_invalid() {
 
 void test19_method_call_valid() {
     auto r = runTypeChecker(R"(
-        struct Point { x: int_32, y: int_32 }
+        struct Point { x: int_32; y: int_32; }
         impl Point {
             fn distance(self: Point, other: Point) -> int_32 { return 0; }
         }
@@ -277,7 +277,7 @@ void test19_method_call_valid() {
 
 void test20_method_call_invalid() {
     auto r = runTypeChecker(R"(
-        struct Point { x: int_32, y: int_32 }
+        struct Point { x: int_32; y: int_32; }
         impl Point {
             fn distance(self: Point, other: Point) -> int_32 { return 0; }
         }
@@ -324,7 +324,7 @@ void test22_array_index() {
 
 int main() {
     std::cout << "========================================\n";
-    std::cout << "  FDLANG TYPECHECKER TESTS\n";
+    std::cout << "  MELLIS TYPECHECKER TESTS\n";
     std::cout << "========================================\n";
     test01_primitives();
     test02_binary_matching();

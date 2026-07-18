@@ -1,4 +1,4 @@
-The Zen of fdlang
+The Zen of mellis
 
 • Safety before convenience.
 • Explicit over implicit.

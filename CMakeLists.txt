@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 # Khai báo tên dự án và ngôn ngữ sử dụng
-project(fdlang VERSION 1.0.0 LANGUAGES CXX C)
+project(mellis VERSION 1.0.0 LANGUAGES CXX C)
 
 # Ép buộc sử dụng C++17
 set(CMAKE_CXX_STANDARD 17)
@@ -23,7 +23,7 @@ add_definitions(${LLVM_DEFINITIONS})
 llvm_map_components_to_libnames(LLVM_LIBS Core ExecutionEngine Interpreter Support native)
 
 # ==========================================
-# PHẦN 2: CẤU HÌNH DỰ ÁN FDLANG
+# PHẦN 2: CẤU HÌNH DỰ ÁN MELLIS
 # ==========================================
 
 # Thư mục include chính
@@ -43,35 +43,42 @@ set(MIDDLEEND_SRC
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/CFG.cpp
     src/MiddleEnd/MatchAnalyzer.cpp
-    # src/MiddleEnd/FLIRGenerator.cpp
+    src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/FLIR.cpp
+    src/MiddleEnd/FLIRGenerator.cpp
+    src/MiddleEnd/Mangle.cpp
+    src/MiddleEnd/SubstitutionVisitor.cpp
+    src/MiddleEnd/MonomorphizationEngine.cpp
+    src/MiddleEnd/Mangle.cpp
 )
 
 set(BACKEND_SRC
-    # src/BackEnd/IRGenerator.cpp
-    # src/BackEnd/LLVMIRGenerator.cpp
-    # src/BackEnd/ExecutableGenerator.cpp
+    src/BackEnd/LLVMIRGenerator.cpp
+    src/BackEnd/ExecutableGenerator.cpp
 )
 
 set(SUPPORT_SRC
     src/Support/Diagnostic.cpp
-    src/Support/ClangLinker.cpp
+    src/Support/LLDLinker.cpp
 )
 
 # Tạo file thực thi chính
-add_executable(fdlang
+add_executable(mellis
     src/main.cpp
     ${AST_SRC}
     ${FRONTEND_SRC}
     ${MIDDLEEND_SRC}
     ${BACKEND_SRC}
     ${SUPPORT_SRC}
+
+    src/Core/SourceManager.cpp
 )
 
 # Liên kết với LLVM
-target_link_libraries(fdlang PRIVATE ${LLVM_LIBS})
+target_link_libraries(mellis PRIVATE ${LLVM_LIBS})
 
 # Runtime Library
-add_library(fdlang_rt STATIC src/Runtime/runtime.c)
+add_library(mellis_rt STATIC src/Runtime/runtime.c)
 
 # ==========================================
 # PHẦN 3: KIỂM THỬ (TESTING)
@@ -82,6 +89,8 @@ enable_testing()
 add_executable(test_ast_manual
     tests/test_ast_manual.cpp
     ${AST_SRC}
+    ${SUPPORT_SRC}
+    src/Core/SourceManager.cpp
 )
 target_include_directories(test_ast_manual PRIVATE include)
 add_test(NAME ASTManualTest COMMAND test_ast_manual)
@@ -89,7 +98,11 @@ add_test(NAME ASTManualTest COMMAND test_ast_manual)
 # ── test_lexer ────────────────────────────────────────────────────────────────
 add_executable(test_lexer
     tests/test_lexer.cpp
+    src/Core/SourceManager.cpp
     src/FrontEnd/Lexer.cpp
+    src/Support/Diagnostic.cpp
+
+    src/Core/SourceManager.cpp
 )
 target_include_directories(test_lexer PRIVATE include)
 add_test(NAME LexerTest COMMAND test_lexer)
@@ -101,6 +114,8 @@ add_executable(test_parser
     src/FrontEnd/Parser.cpp
     src/Support/Diagnostic.cpp
     ${AST_SRC}
+
+    src/Core/SourceManager.cpp
 )
 target_include_directories(test_parser PRIVATE include)
 add_test(NAME ParserTest COMMAND test_parser)
@@ -115,6 +130,8 @@ add_executable(test_resolver
     src/MiddleEnd/Resolver.cpp
     src/Support/Diagnostic.cpp
     ${AST_SRC}
+
+    src/Core/SourceManager.cpp
 )
 target_include_directories(test_resolver PRIVATE include)
 add_test(NAME ResolverTest COMMAND test_resolver)
@@ -124,6 +141,8 @@ add_test(NAME ResolverTest COMMAND test_resolver)
 add_executable(test_diagnostic
     tests/test_diagnostic.cpp
     src/Support/Diagnostic.cpp
+
+    src/Core/SourceManager.cpp
 )
 target_include_directories(test_diagnostic PRIVATE include)
 add_test(NAME DiagnosticTest COMMAND test_diagnostic)
@@ -137,8 +156,13 @@ add_executable(test_typechecker
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/MatchAnalyzer.cpp
+    src/MiddleEnd/MonomorphizationEngine.cpp
+    src/MiddleEnd/Mangle.cpp
+    src/MiddleEnd/SubstitutionVisitor.cpp
     src/Support/Diagnostic.cpp
     ${AST_SRC}
+
+    src/Core/SourceManager.cpp
 )
 target_include_directories(test_typechecker PRIVATE include)
 add_test(NAME TypeCheckerTest COMMAND test_typechecker)
@@ -151,57 +175,96 @@ add_executable(test_cfg
     src/MiddleEnd/CFG.cpp
     src/Support/Diagnostic.cpp
     ${AST_SRC}
+
+    src/Core/SourceManager.cpp
 )
 target_include_directories(test_cfg PRIVATE include)
 add_test(NAME CFGTest COMMAND test_cfg)
 
 # ── test_flir_generator ───────────────────────────────────────────────────────
-# add_executable(test_flir_generator
-#     tests/test_flir_generator.cpp
-#     src/FrontEnd/Lexer.cpp
-#     src/FrontEnd/Parser.cpp
-#     src/MiddleEnd/SymbolTable.cpp
-#     src/MiddleEnd/Resolver.cpp
-#     src/MiddleEnd/TypeChecker.cpp
-#     src/MiddleEnd/FLIR.cpp
-#     src/MiddleEnd/FLIRGenerator.cpp
-#     src/Support/Diagnostic.cpp
-# )
-# target_include_directories(test_flir_generator PRIVATE include)
-# add_test(NAME FLIRGeneratorTest COMMAND test_flir_generator)
+add_executable(test_flir_generator
+    tests/test_flir_generator.cpp
+    src/FrontEnd/Lexer.cpp
+    src/FrontEnd/Parser.cpp
+    src/MiddleEnd/SymbolTable.cpp
+    src/MiddleEnd/Resolver.cpp
+    src/MiddleEnd/TypeChecker.cpp
+    src/MiddleEnd/FLIR.cpp
+    src/MiddleEnd/FLIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MonomorphizationEngine.cpp
+    src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
+    src/Support/Diagnostic.cpp
+    ${AST_SRC}
+
+    src/Core/SourceManager.cpp
+)
+target_include_directories(test_flir_generator PRIVATE include)
+add_test(NAME FLIRGeneratorTest COMMAND test_flir_generator)
+
+# ── test_borrow_checker ───────────────────────────────────────────────────────
+add_executable(test_borrow_checker
+    tests/test_borrow_checker.cpp
+    src/FrontEnd/Lexer.cpp
+    src/FrontEnd/Parser.cpp
+    src/MiddleEnd/SymbolTable.cpp
+    src/MiddleEnd/Resolver.cpp
+    src/MiddleEnd/TypeChecker.cpp
+    src/MiddleEnd/FLIR.cpp
+    src/MiddleEnd/FLIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MonomorphizationEngine.cpp
+    src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
+    src/Support/Diagnostic.cpp
+    ${AST_SRC}
+
+    src/Core/SourceManager.cpp
+)
+target_include_directories(test_borrow_checker PRIVATE include)
+add_test(NAME BorrowCheckerTest COMMAND test_borrow_checker)
 
 # ── test_llvmir_generator ───────────────────────────────────────────────────────
-# add_executable(test_llvmir_generator
-#     tests/test_llvmir_generator.cpp
-#     src/FrontEnd/Lexer.cpp
-#     src/FrontEnd/Parser.cpp
-#     src/MiddleEnd/SymbolTable.cpp
-#     src/MiddleEnd/Resolver.cpp
-#     src/MiddleEnd/TypeChecker.cpp
-#     src/MiddleEnd/FLIR.cpp
-#     src/MiddleEnd/FLIRGenerator.cpp
-#     src/BackEnd/LLVMIRGenerator.cpp
-#     src/Support/Diagnostic.cpp
-# )
-# target_include_directories(test_llvmir_generator PRIVATE include)
-# target_link_libraries(test_llvmir_generator PRIVATE ${LLVM_LIBS})
-# add_test(NAME LLVMIRGeneratorTest COMMAND test_llvmir_generator)
+add_executable(test_llvmir_generator
+    tests/test_llvmir_generator.cpp
+    src/FrontEnd/Lexer.cpp
+    src/FrontEnd/Parser.cpp
+    src/MiddleEnd/SymbolTable.cpp
+    src/MiddleEnd/Resolver.cpp
+    src/MiddleEnd/TypeChecker.cpp
+    src/MiddleEnd/FLIR.cpp
+    src/MiddleEnd/FLIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MonomorphizationEngine.cpp
+    src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
+    src/BackEnd/LLVMIRGenerator.cpp
+    src/Support/Diagnostic.cpp
+    ${AST_SRC}
+
+    src/Core/SourceManager.cpp
+)
+target_include_directories(test_llvmir_generator PRIVATE include)
+target_link_libraries(test_llvmir_generator PRIVATE ${LLVM_LIBS})
+add_test(NAME LLVMIRGeneratorTest COMMAND test_llvmir_generator)
 
 # ── test_executable_generator ───────────────────────────────────────────────────
-# add_executable(test_executable_generator
-#     tests/test_executable_generator.cpp
-#     src/FrontEnd/Lexer.cpp
-#     src/FrontEnd/Parser.cpp
-#     src/MiddleEnd/SymbolTable.cpp
-#     src/MiddleEnd/Resolver.cpp
-#     src/MiddleEnd/TypeChecker.cpp
-#     src/MiddleEnd/FLIR.cpp
-#     src/MiddleEnd/FLIRGenerator.cpp
-#     src/BackEnd/LLVMIRGenerator.cpp
-#     src/BackEnd/ExecutableGenerator.cpp
-#     src/Support/ClangLinker.cpp
-#     src/Support/Diagnostic.cpp
-# )
-# target_include_directories(test_executable_generator PRIVATE include)
-# target_link_libraries(test_executable_generator PRIVATE ${LLVM_LIBS})
-# add_test(NAME ExecutableGeneratorTest COMMAND test_executable_generator)
+add_executable(test_executable_generator
+    tests/test_executable_generator.cpp
+    src/FrontEnd/Lexer.cpp
+    src/FrontEnd/Parser.cpp
+    src/MiddleEnd/SymbolTable.cpp
+    src/MiddleEnd/Resolver.cpp
+    src/MiddleEnd/TypeChecker.cpp
+    src/MiddleEnd/FLIR.cpp
+    src/MiddleEnd/FLIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MonomorphizationEngine.cpp
+    src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
+    src/BackEnd/LLVMIRGenerator.cpp
+    src/BackEnd/ExecutableGenerator.cpp
+    src/Support/LLDLinker.cpp
+    src/Support/ClangLinker.cpp
+    src/Support/Diagnostic.cpp
+    ${AST_SRC}
+
+    src/Core/SourceManager.cpp
+)
+target_include_directories(test_executable_generator PRIVATE include)
+target_link_libraries(test_executable_generator PRIVATE ${LLVM_LIBS})
+add_test(NAME ExecutableGeneratorTest COMMAND test_executable_generator)

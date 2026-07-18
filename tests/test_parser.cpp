@@ -1,13 +1,13 @@
 #include <cassert>
 #include <iostream>
-#include "fdlang/FrontEnd/Lexer.h"
-#include "fdlang/FrontEnd/Parser.h"
-#include "fdlang/AST/ProgramNode.h"
-#include "fdlang/AST/DeclNode.h"
-#include "fdlang/AST/TypeNode.h"
-#include "fdlang/AST/ExprNode.h"
-#include "fdlang/AST/StmtNode.h"
-#include "fdlang/Support/Diagnostic.h"
+#include "mellis/FrontEnd/Lexer.h"
+#include "mellis/FrontEnd/Parser.h"
+#include "mellis/AST/ProgramNode.h"
+#include "mellis/AST/DeclNode.h"
+#include "mellis/AST/TypeNode.h"
+#include "mellis/AST/ExprNode.h"
+#include "mellis/AST/StmtNode.h"
+#include "mellis/Support/Diagnostic.h"
 
 using namespace fl;
 
@@ -137,7 +137,7 @@ void testFunctionAndControlFlow() {
 
 void testBatch3() {
     Lexer lexer(
-        "struct Vec2 { x: float_32, y: float_32 }\n"
+        "struct Vec2 { x: float_32; y: float_32; }\n"
         "fn main() -> void {\n"
         "    dec v = Vec2 { x: 1.0, y: 2.0 };\n"
         "    v.x = v.x + foo::bar(v.y, z: 3.0)[0];\n"
@@ -182,7 +182,7 @@ void testBatch3() {
 
 void testGenerics() {
     Lexer lexer(
-        "struct HashMap<K: Hash + Eq, V> { data: int_32 }\n"
+        "struct HashMap<K: Hash + Eq, V> { data: int_32; }\n"
         "fn main() -> void {\n"
         "    dec map = HashMap@<string, int_32>::new();\n"
         "}"

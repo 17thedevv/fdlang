@@ -1,4 +1,4 @@
-# Resolver Subsystem — fdlang Implementation Plan
+# Resolver Subsystem — mellis Implementation Plan
 
 ## Background
 
@@ -26,7 +26,7 @@ Each pass reads the previous pass's output and writes annotations. No pass does 
 
 ## Comparison: rustc / Clang / Swift
 
-| Aspect | rustc | Clang | Swift | fdlang (this plan) |
+| Aspect | rustc | Clang | Swift | mellis (this plan) |
 |--------|-------|-------|-------|-------------------|
 | Symbol ID | `DefId` (crate_id + local_id) | `DeclContext*` pointer | `DeclContext*` | `SymbolID` (u32 index) |
 | Scope model | `Rib` stack (one Rib per scope kind) | `DeclContext` hierarchy | `ASTScope` tree | `ScopeStack` + `ScopeID` |
@@ -34,9 +34,9 @@ Each pass reads the previous pass's output and writes annotations. No pass does 
 | Resolution output | `ResolutionMap<NodeId, Res>` | in-place on `NamedDecl*` | in-place on `DeclRefExpr*` | in-place on `IdentifierExpr.symbolId` |
 | Separation from types | Strict — resolve before ty | Weak — Sema does both | Moderate | Strict |
 
-**Key difference from Clang**: Clang's `Sema` class does name resolution AND type checking in a single pass. This makes Clang extremely fast but hard to extend. fdlang follows rustc's philosophy: strict pass separation.
+**Key difference from Clang**: Clang's `Sema` class does name resolution AND type checking in a single pass. This makes Clang extremely fast but hard to extend. mellis follows rustc's philosophy: strict pass separation.
 
-**Key difference from rustc**: rustc uses a 2-level `DefId (crate_id, local_id)` because it handles multiple crates. fdlang uses a flat `uint32_t` — simpler for a single-crate MVP, extensible later by making it a struct.
+**Key difference from rustc**: rustc uses a 2-level `DefId (crate_id, local_id)` because it handles multiple crates. mellis uses a flat `uint32_t` — simpler for a single-crate MVP, extensible later by making it a struct.
 
 ---
 
@@ -45,7 +45,7 @@ Each pass reads the previous pass's output and writes annotations. No pass does 
 ### 1. `SymbolID` and `ScopeID`
 
 ```cpp
-// include/fdlang/Core/Types.h
+// include/mellis/Core/Types.h
 using SymbolID = uint32_t;
 using ScopeID  = uint32_t;
 constexpr SymbolID kInvalidSymbolID = UINT32_MAX;
@@ -188,7 +188,7 @@ private:
 ## Folder Layout (After This Plan)
 
 ```
-include/fdlang/
+include/mellis/
 ├── Core/
 │   └── Types.h              [NEW] — SymbolID, ScopeID, sentinel values
 ├── AST/
@@ -339,9 +339,9 @@ print x;            // resolves to symbolId = 1  ✓
 
 | # | Commit | Files | Description |
 |---|--------|-------|-------------|
-| 1 | `feat(core): add Types.h` | `include/fdlang/Core/Types.h` | SymbolID, ScopeID, sentinels |
+| 1 | `feat(core): add Types.h` | `include/mellis/Core/Types.h` | SymbolID, ScopeID, sentinels |
 | 2 | `feat(ast): annotate nodes with symbolId` | `ExprNode.h`, `StmtNode.h` | Add symbolId fields |
-| 3 | `feat(middleend): add Symbol.h` | `include/fdlang/MiddleEnd/Symbol.h` | Symbol, Scope, enums |
+| 3 | `feat(middleend): add Symbol.h` | `include/mellis/MiddleEnd/Symbol.h` | Symbol, Scope, enums |
 | 4 | `feat(middleend): add ScopeStack` | `ScopeStack.h`, `ScopeStack.cpp` | Traversal-time scope tracking |
 | 5 | `feat(middleend): add SymbolTable` | `SymbolTable.h`, `SymbolTable.cpp` | Arena + lookup chain |
 | 6 | `feat(middleend): add Resolver` | `Resolver.h`, `Resolver.cpp` | Name resolution pass |

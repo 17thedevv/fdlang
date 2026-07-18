@@ -1,5 +1,5 @@
 // =============================================================================
-// fdlang/Support/Diagnostic.cpp
+// mellis/Support/Diagnostic.cpp
 //
 // DiagnosticEngine implementation.
 //
@@ -9,7 +9,7 @@
 //   must be added only here — no formatting logic should leak into report().
 // =============================================================================
 
-#include "fdlang/Support/Diagnostic.h"
+#include "mellis/Support/Diagnostic.h"
 #include <iostream>
 #include <string_view>
 
@@ -98,14 +98,14 @@ void DiagnosticEngine::flush() const {
 
         if (loc.line != 0) {
             // Fully tracked location: file:line:col: severity: message
-            std::cerr << "fdlang"
+            std::cerr << "mellis"
                       << ':' << loc.line
                       << ':' << loc.column
                       << ": " << label << ": "
                       << d.message << '\n';
         } else {
             // MVP: location not yet tracked by Lexer — omit line/col.
-            std::cerr << "fdlang: " << label << ": " << d.message << '\n';
+            std::cerr << "mellis: byte: " << loc.offset << " " << label << ": " << d.message << '\n';
         }
     }
 }

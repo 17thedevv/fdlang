@@ -7,11 +7,11 @@
 #include <cassert>
 #include <iostream>
 #include <sstream>
-#include "fdlang/FrontEnd/Lexer.h"
-#include "fdlang/FrontEnd/Parser.h"
-#include "fdlang/MiddleEnd/SymbolTable.h"
-#include "fdlang/MiddleEnd/Resolver.h"
-#include "fdlang/Support/Diagnostic.h"
+#include "mellis/FrontEnd/Lexer.h"
+#include "mellis/FrontEnd/Parser.h"
+#include "mellis/MiddleEnd/SymbolTable.h"
+#include "mellis/MiddleEnd/Resolver.h"
+#include "mellis/Support/Diagnostic.h"
 
 using namespace fl;
 
@@ -168,7 +168,7 @@ void test07_patternBindings() {
 
 int main() {
     std::cout << "========================================\n";
-    std::cout << "  FDLANG RESOLVER TESTS\n";
+    std::cout << "  MELLIS RESOLVER TESTS\n";
     std::cout << "========================================\n";
 
     test01_simpleDeclarationAndUse();

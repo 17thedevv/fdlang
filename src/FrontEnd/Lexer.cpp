@@ -1,4 +1,4 @@
-#include "fdlang/FrontEnd/Lexer.h"
+#include "mellis/FrontEnd/Lexer.h"
 #include <cctype>
 #include <string>
 #include <unordered_map>
@@ -150,7 +150,7 @@ static const std::unordered_map<std::string_view, BuiltinKind> kBuiltinTypes = {
     {"float_64", BuiltinKind::F64},
     {"bool", BuiltinKind::Bool},
     {"char", BuiltinKind::Char},
-    {"string", BuiltinKind::Str},
+    {"str", BuiltinKind::Str},
 };
 
 Token Lexer::identifierOrKeyword() {

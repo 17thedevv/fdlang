@@ -1,6 +1,6 @@
 #include <cassert>
 #include <iostream>
-#include "fdlang/FrontEnd/Lexer.h"
+#include "mellis/FrontEnd/Lexer.h"
 
 using namespace fl;
 
@@ -178,7 +178,7 @@ void testKeywords() {
 }
 
 int main() {
-    std::cout << "--- RUNNING FDLANG TESTS ---\n";
+    std::cout << "--- RUNNING MELLIS TESTS ---\n";
     
     testVariableDeclaration();
     testLiterals();

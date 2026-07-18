@@ -1,8 +1,8 @@
-#include "fdlang/MiddleEnd/Symbol/SymbolTable.h"
-#include "fdlang/MiddleEnd/SemanticAnalyzer.h"
-#include "fdlang/AST/ASTNode.h"
-#include "fdlang/AST/ExprNode.h"
-#include "fdlang/AST/StmtNode.h"
+#include "mellis/MiddleEnd/Symbol/SymbolTable.h"
+#include "mellis/MiddleEnd/SemanticAnalyzer.h"
+#include "mellis/AST/ASTNode.h"
+#include "mellis/AST/ExprNode.h"
+#include "mellis/AST/StmtNode.h"
 #include <iostream>
 #include <cstdlib>
 

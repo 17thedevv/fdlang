@@ -19,7 +19,7 @@
 
 #include <cassert>
 #include <iostream>
-#include "fdlang/Support/Diagnostic.h"
+#include "mellis/Support/Diagnostic.h"
 
 using namespace fl;
 
@@ -158,7 +158,7 @@ void test08_resetClearsState() {
 
 int main() {
     std::cout << "========================================\n";
-    std::cout << "  FDLANG DIAGNOSTIC ENGINE TESTS\n";
+    std::cout << "  MELLIS DIAGNOSTIC ENGINE TESTS\n";
     std::cout << "========================================\n";
 
     test01_freshEngineIsClean();

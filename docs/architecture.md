@@ -1,6 +1,6 @@
 # 1. Overview & Philosophy
 
-**Language Name:** freedomLanguage (fdlang)
+**Language Name:** freedomLanguage (mellis)
 
 **Source Files**
 - `.fl`  — source file
@@ -12,7 +12,7 @@ The compiler treats both file types uniformly. Project organization is entirely 
 
 ## Vision
 
-fdlang is a modern systems programming language designed for building large native software.
+mellis is a modern systems programming language designed for building large native software.
 
 Its primary goal is not to reinvent memory management, but to improve the compiler architecture, module system and developer tooling while maintaining native performance and memory safety.
 
@@ -33,7 +33,7 @@ Game engines are one possible application—not a language-specific target.
 
 # 2. Compiler Architecture
 
-The fdlang compiler is organized as a sequence of independent compiler passes.
+The mellis compiler is organized as a sequence of independent compiler passes.
 Source (.fl)
         │
         ▼
@@ -81,7 +81,7 @@ Before implementing any pass, we must ask 3 questions:
 
 # 3. Module System
 
-fdlang uses semantic imports rather than textual inclusion.
+mellis uses semantic imports rather than textual inclusion.
 
 Modules communicate through symbol information instead of source code inclusion.
 
@@ -104,7 +104,7 @@ Long-term goals:
 
 Memory safety is a core design goal.
 
-fdlang adopts proven concepts including:
+mellis adopts proven concepts including:
 
 - Ownership
 - Borrow Checking

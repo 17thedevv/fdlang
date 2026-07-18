@@ -1,4 +1,4 @@
-#include "fdlang/MiddleEnd/SymbolTable.h"
+#include "mellis/MiddleEnd/SymbolTable.h"
 #include <cassert>
 
 namespace fl {
@@ -22,6 +22,15 @@ SymbolTable::SymbolTable() {
         /* kind     = */ ScopeKind::Global,
         /* bindings = */ ScopeBindings{}
     });
+
+    const char* builtins[] = {
+        "u8", "u16", "u32", "u64",
+        "i8", "i16", "i32", "i64",
+        "f32", "f64", "bool", "char", "str"
+    };
+    for (const char* name : builtins) {
+        declareSymbol(Identifier(std::string_view(name)), SymbolKind::TypeAlias, 0, SourceLocation::invalid(), nullptr);
+    }
 }
 
 // =============================================================================

@@ -8,15 +8,16 @@
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
-#include "fdlang/FrontEnd/Lexer.h"
-#include "fdlang/FrontEnd/Parser.h"
-#include "fdlang/MiddleEnd/SymbolTable.h"
-#include "fdlang/MiddleEnd/Resolver.h"
-#include "fdlang/MiddleEnd/TypeChecker.h"
-#include "fdlang/MiddleEnd/FLIRGenerator.h"
-#include "fdlang/BackEnd/LLVMIRGenerator.h"
-#include "fdlang/BackEnd/ExecutableGenerator.h"
-#include "fdlang/Support/ClangLinker.h"
+#include "mellis/FrontEnd/Lexer.h"
+#include "mellis/FrontEnd/Parser.h"
+#include "mellis/MiddleEnd/SymbolTable.h"
+#include "mellis/MiddleEnd/Resolver.h"
+#include "mellis/MiddleEnd/TypeChecker.h"
+#include "mellis/MiddleEnd/FLIRGenerator.h"
+#include "mellis/BackEnd/LLVMIRGenerator.h"
+#include "mellis/BackEnd/ExecutableGenerator.h"
+#include "mellis/Support/ClangLinker.h"
+#include "mellis/MiddleEnd/MonomorphizationEngine.h"
 #include <llvm/Support/FileSystem.h>
 
 using namespace fl;
@@ -28,20 +29,23 @@ void test_end_to_end_execution() {
     DiagnosticEngine diag; Parser parser(lexer, diag);
     auto ast = parser.parse();
 
-    DiagnosticEngine diag;
+    DiagnosticEngine diag2;
     SymbolTable table;
-    Resolver resolver(table, diag);
+    Resolver resolver(table, diag2);
     resolver.resolve(ast.get());
 
-    TypeChecker tc(table, diag);
+    TypeContext typeCtx;
+    TypeChecker tc(table, diag2, typeCtx);
+    MonomorphizationEngine monoEngine(table, resolver, tc);
+    tc.setMonomorphizationEngine(&monoEngine);
     tc.check(ast.get());
 
     FLIRGenerator flirGen(table, tc);
-    auto flirModule = flirGen.generate(ast.get());
+    auto flirModule = flirGen.generate(*ast.get());
 
     llvm::LLVMContext ctx;
     llvm::Module llvmModule("test_module", ctx);
-    LLVMIRGenerator llvmGen(ctx, llvmModule);
+    LLVMIRGenerator llvmGen(ctx, llvmModule, table);
     bool ok = llvmGen.generate(flirModule.get());
     if (!ok) {
         std::cerr << "LLVM generation failed\n";
@@ -62,7 +66,7 @@ void test_end_to_end_execution() {
         };
         
         MockLinker mock;
-        ExecutableGenerator exeGenMock(diag, mock);
+        ExecutableGenerator exeGenMock(diag2, mock);
         std::string outExe = ".\\test_e2e_output.exe";
         bool exeOk = exeGenMock.generateExecutable(&llvmModule, outExe);
         if (!exeOk) {
@@ -74,8 +78,8 @@ void test_end_to_end_execution() {
         return;
     }
 
-    ClangLinker linker(diag);
-    ExecutableGenerator exeGen(diag, linker);
+    ClangLinker linker(diag2);
+    ExecutableGenerator exeGen(diag2, linker);
     
     std::string outExe = ".\\test_e2e_output.exe";
     bool exeOk = exeGen.generateExecutable(&llvmModule, outExe);
@@ -109,7 +113,7 @@ void test_end_to_end_execution() {
 
 int main() {
     std::cout << "========================================\n";
-    std::cout << "  FDLANG EXECUTABLE GENERATOR TESTS\n";
+    std::cout << "  MELLIS EXECUTABLE GENERATOR TESTS\n";
     std::cout << "========================================\n";
 
     test_end_to_end_execution();

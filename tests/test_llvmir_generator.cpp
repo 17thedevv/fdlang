@@ -7,13 +7,13 @@
 #include <cassert>
 #include <iostream>
 #include <sstream>
-#include "fdlang/FrontEnd/Lexer.h"
-#include "fdlang/FrontEnd/Parser.h"
-#include "fdlang/MiddleEnd/SymbolTable.h"
-#include "fdlang/MiddleEnd/Resolver.h"
-#include "fdlang/MiddleEnd/TypeChecker.h"
-#include "fdlang/MiddleEnd/FLIRGenerator.h"
-#include "fdlang/BackEnd/LLVMIRGenerator.h"
+#include "mellis/FrontEnd/Lexer.h"
+#include "mellis/FrontEnd/Parser.h"
+#include "mellis/MiddleEnd/SymbolTable.h"
+#include "mellis/MiddleEnd/Resolver.h"
+#include "mellis/MiddleEnd/TypeChecker.h"
+#include "mellis/MiddleEnd/FLIRGenerator.h"
+#include "mellis/BackEnd/LLVMIRGenerator.h"
 #include <llvm/Support/raw_ostream.h>
 
 using namespace fl;
@@ -22,23 +22,25 @@ using namespace fl;
 
 std::string generateLLVM(const std::string& source) {
     Lexer lexer(source);
-    DiagnosticEngine diag; Parser parser(lexer, diag);
+    DiagnosticEngine diag; 
+    Parser parser(lexer, diag);
     auto ast = parser.parse();
 
-    DiagnosticEngine diag;
     SymbolTable table;
     Resolver resolver(table, diag);
     resolver.resolve(ast.get());
 
-    TypeChecker tc(table, diag);
+    TypeContext ctx;
+    TypeChecker tc(table, diag, ctx);
     tc.check(ast.get());
 
     FLIRGenerator flirGen(table, tc);
-    auto flirModule = flirGen.generate(ast.get());
+    auto* prog = dynamic_cast<ProgramNode*>(ast.get());
+    auto flirModule = flirGen.generate(*prog);
 
-    llvm::LLVMContext ctx;
-    llvm::Module llvmModule("test_module", ctx);
-    LLVMIRGenerator llvmGen(ctx, llvmModule);
+    llvm::LLVMContext llvmCtx;
+    llvm::Module llvmModule("test_module", llvmCtx);
+    LLVMIRGenerator llvmGen(llvmCtx, llvmModule, table);
     bool ok = llvmGen.generate(flirModule.get());
     assert(ok && "LLVM generation/verification failed");
 
@@ -94,7 +96,7 @@ void test04_print_call() {
 
 int main() {
     std::cout << "========================================\n";
-    std::cout << "  FDLANG LLVM IR GENERATOR TESTS\n";
+    std::cout << "  MELLIS LLVM IR GENERATOR TESTS\n";
     std::cout << "========================================\n";
 
     test01_variable_declaration();

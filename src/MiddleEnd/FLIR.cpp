@@ -1,4 +1,4 @@
-#include "fdlang/MiddleEnd/FLIR.h"
+#include "mellis/MiddleEnd/FLIR.h"
 #include <sstream>
 
 namespace fl {
@@ -8,13 +8,15 @@ namespace flir {
 // 1. Types
 // =============================================================================
 
-std::string formatType(FLType type) {
-    switch (type) {
-        case FLType::Int:  return "i32";
-        case FLType::Bool: return "bool";
-        case FLType::Unknown: return "void"; // Fallback for void functions
+std::string formatType(const Type* type) {
+    if (!type) return "void";
+    if (type->getKind() == TypeKind::Primitive) {
+        auto prim = static_cast<const PrimitiveType*>(type);
+        if (prim->builtinKind == BuiltinKind::I32) return "i32";
+        if (prim->builtinKind == BuiltinKind::Bool) return "bool";
+        if (prim->builtinKind == BuiltinKind::Void) return "void";
     }
-    return "void";
+    return type->toString();
 }
 
 // =============================================================================
@@ -43,6 +45,30 @@ std::string StoreInst::toString() const {
     return "store " + flir::toString(value) + ", " + flir::toString(ptr);
 }
 
+std::string GetPtrInst::toString() const {
+    std::string res = dest.toString() + " = get_ptr " + flir::toString(base);
+    for (const auto& off : offsets) {
+        res += ", " + flir::toString(off);
+    }
+    return res;
+}
+
+std::string BeginScopeInst::toString() const {
+    return "begin_scope";
+}
+
+std::string EndScopeInst::toString() const {
+    return "end_scope";
+}
+
+std::string BorrowInst::toString() const {
+    return dest.toString() + " = borrow " + (isMutable ? "mut" : "shared") + " " + flir::toString(base);
+}
+
+std::string CastInst::toString() const {
+    return dest.toString() + " = cast " + flir::toString(value) + " to " + formatType(targetType);
+}
+
 std::string formatAluOp(AluOp op) {
     switch (op) {
         case AluOp::Add: return "add";
@@ -69,7 +95,7 @@ std::string CallInst::toString() const {
     if (dest) {
         res += dest->toString() + " = ";
     }
-    res += "call " + func.toString() + "(";
+    res += "call " + fl::flir::toString(func) + "(";
     for (size_t i = 0; i < args.size(); ++i) {
         res += flir::toString(args[i]);
         if (i < args.size() - 1) {
@@ -98,6 +124,15 @@ std::string RetTerm::toString() const {
         return "ret " + flir::toString(*value);
     }
     return "ret";
+}
+
+std::string SwitchTerm::toString() const {
+    std::string res = "switch " + flir::toString(condition) + " { ";
+    for (const auto& c : cases) {
+        res += c.first.toString() + ": " + c.second.toString() + ", ";
+    }
+    res += "default: " + defaultTarget.toString() + " }";
+    return res;
 }
 
 // =============================================================================
@@ -135,8 +170,44 @@ std::string Function::toString() const {
     return res;
 }
 
+std::string ExternFunction::toString() const {
+    std::string res = "extern func " + name.toString() + "(";
+    for (size_t i = 0; i < paramTypes.size(); ++i) {
+        res += formatType(paramTypes[i]);
+        if (i < paramTypes.size() - 1) res += ", ";
+    }
+    res += ") -> " + formatType(returnType);
+    return res;
+}
+
+std::string TypeDecl::toString() const {
+    std::string res = "type " + name + " = struct {";
+    for (size_t i = 0; i < fields.size(); ++i) {
+        res += formatType(fields[i]);
+        if (i < fields.size() - 1) res += ", ";
+    }
+    res += "}";
+    return res;
+}
+
+std::string GlobalDecl::toString() const {
+    return name.toString() + " = global " + formatType(type) + " " + stringLiteral;
+}
+
 std::string Module::toString() const {
     std::string res;
+    for (const auto& t : typeDecls) {
+        res += t.toString() + "\n";
+    }
+    if (!typeDecls.empty()) res += "\n";
+    for (const auto& g : globalDecls) {
+        res += g.toString() + "\n";
+    }
+    if (!globalDecls.empty()) res += "\n";
+    for (const auto& e : externFunctions) {
+        res += e.toString() + "\n";
+    }
+    if (!externFunctions.empty()) res += "\n";
     for (const auto& func : functions) {
         res += func->toString() + "\n";
     }
