@@ -13,15 +13,18 @@ int main(int argc, char* argv[]) {
 
     std::string filepath = argv[1];
     bool verbose = false;
+    int optLevel = 0;
     for (int i = 2; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "-v" || arg == "--verbose") {
             verbose = true;
+        } else if (arg == "-O1") {
+            optLevel = 1;
         }
     }
 
     CompilerSession session;
-    bool success = session.compile(filepath, verbose);
+    bool success = session.compile(filepath, verbose, optLevel);
 
     if (!success) {
         return 65; // data format error

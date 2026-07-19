@@ -12,6 +12,8 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/TargetParser/Host.h>
 #include <llvm/Support/CodeGen.h>
+#include <llvm/Passes/PassBuilder.h>
+#include <llvm/Passes/StandardInstrumentations.h>
 #include <system_error>
 #include <iostream>
 
@@ -46,6 +48,27 @@ bool ExecutableGenerator::generateExecutable(llvm::Module* llvmModule, const std
 
     llvmModule->setDataLayout(targetMachine->createDataLayout());
 
+    // 1.5 Run Optimizations (including Coroutines)
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+
+    llvm::PassBuilder PB(targetMachine);
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+    std::cout << "[ExeGen] Building PassManager..." << std::endl;
+    llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
+    std::cout << "[ExeGen] Running Optimization Passes..." << std::endl;
+    MPM.run(*llvmModule, MAM);
+    std::cout << "[ExeGen] Optimizations complete." << std::endl;
+    llvmModule->print(llvm::outs(), nullptr);
+    llvm::outs().flush();
+
     // 2. Emit Object File
     std::string objPath = outputPath + ".obj";
     std::error_code ec;
@@ -59,13 +82,16 @@ bool ExecutableGenerator::generateExecutable(llvm::Module* llvmModule, const std
     llvm::legacy::PassManager pass;
     auto fileType = llvm::CodeGenFileType::ObjectFile;
 
+    std::cout << "[ExeGen] Adding passes to emit file..." << std::endl;
     if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, fileType)) {
         diag_.error(SourceLocation{}, "TargetMachine khong the emit kieu file nay.");
         return false;
     }
 
+    std::cout << "[ExeGen] Running CodeGen Passes..." << std::endl;
     pass.run(*llvmModule);
     dest.flush();
+    std::cout << "[ExeGen] Object file emitted." << std::endl;
 
     // 3. Link Object File into Executable
     // For MVP, we hardcode the path to where CMake builds it.

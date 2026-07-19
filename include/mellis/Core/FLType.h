@@ -35,9 +35,12 @@ enum class TypeKind : uint8_t {
     TypeParameter,
     GenericParam,
     Trait,
+    TraitObject,
     InferenceVar,
     Never,
     Void,
+    Closure,
+    Future,
     Unknown
 };
 
@@ -51,6 +54,9 @@ public:
     
     // Exact equality check. For subtyping/coercion, use a separate TypeChecker utility.
     virtual bool equals(const Type* other) const = 0;
+
+    // DST (Dynamically Sized Type) check
+    virtual bool isSized() const { return true; } // By default, most types are sized
 };
 
 // -----------------------------------------------------------------------------
@@ -105,6 +111,29 @@ public:
     std::string toString() const override { return "unknown"; }
     bool equals(const Type* other) const override {
         return other->getKind() == TypeKind::Unknown;
+    }
+};
+
+// -----------------------------------------------------------------------------
+// Future Type (Async/Await)
+// -----------------------------------------------------------------------------
+class FutureType : public Type {
+public:
+    const Type* innerType;
+
+    FutureType(const Type* inner) : innerType(inner) {}
+
+    TypeKind getKind() const override { return TypeKind::Future; }
+
+    std::string toString() const override {
+        return "Future<" + innerType->toString() + ">";
+    }
+
+    bool equals(const Type* other) const override {
+        if (auto* f = dynamic_cast<const FutureType*>(other)) {
+            return innerType->equals(f->innerType);
+        }
+        return false;
     }
 };
 
@@ -252,6 +281,34 @@ public:
 };
 
 // -----------------------------------------------------------------------------
+// Closure Type (Anonymous struct for lambdas)
+// -----------------------------------------------------------------------------
+class ClosureType : public Type {
+public:
+    SymbolID structSymbolId; // ID of the anonymous struct
+    SymbolID generatedFuncId;
+    const FunctionType* signature;
+    std::vector<SymbolID> capturedSymbols;
+    
+    // Memory layout matches a StructType:
+    std::vector<const Type*> fieldTypes; // First field is func ptr, remaining are captured vars
+    
+    ClosureType(SymbolID structId, SymbolID funcId, const FunctionType* sig, std::vector<SymbolID> captures)
+        : structSymbolId(structId), generatedFuncId(funcId), signature(sig), capturedSymbols(std::move(captures)) {}
+        
+    TypeKind getKind() const override { return TypeKind::Closure; }
+    std::string toString() const override {
+        return "[closure@" + std::to_string(structSymbolId) + "]";
+    }
+    bool equals(const Type* other) const override {
+        if (auto* o = dynamic_cast<const ClosureType*>(other)) {
+            return structSymbolId == o->structSymbolId;
+        }
+        return false;
+    }
+};
+
+// -----------------------------------------------------------------------------
 // Pointer Type (*T)
 // -----------------------------------------------------------------------------
 class PointerType : public Type {
@@ -314,6 +371,30 @@ public:
         }
         return false;
     }
+};
+
+// -----------------------------------------------------------------------------
+// Trait Object Type (dyn Trait)
+// -----------------------------------------------------------------------------
+class TraitObjectType : public Type {
+public:
+    SymbolID traitId;
+    
+    explicit TraitObjectType(SymbolID id) : traitId(id) {}
+    
+    TypeKind getKind() const override { return TypeKind::TraitObject; }
+    std::string toString() const override {
+        return "dyn Trait<" + std::to_string(traitId) + ">";
+    }
+    bool equals(const Type* other) const override {
+        if (auto* o = dynamic_cast<const TraitObjectType*>(other)) {
+            return traitId == o->traitId;
+        }
+        return false;
+    }
+
+    // DST constraint: dyn Trait is NOT sized
+    bool isSized() const override { return false; }
 };
 
 // -----------------------------------------------------------------------------
@@ -463,17 +544,7 @@ public:
     }
     
     // Deep resolve a type, replacing InferenceVarTypes with their unified type
-    const Type* deepResolve(const Type* t, TypeContext& ctx) const {
-        if (!t) return nullptr;
-        if (auto* inf = dynamic_cast<const InferenceVarType*>(t)) {
-            if (const Type* res = resolve(inf->varId)) {
-                return deepResolve(res, ctx);
-            }
-            return t; // unbound
-        }
-        // Simplified for MVP, ideally should recurse into genericArgs, Pointers, etc.
-        return t; 
-    }
+    const Type* deepResolve(const Type* t, TypeContext& ctx) const;
 };
 
 class TypeContext {
@@ -629,6 +700,15 @@ public:
         return create<TraitType>(id);
     }
     
+    const TraitObjectType* getTraitObjectType(SymbolID id) {
+        for (auto& t : arena_) {
+            if (auto* tr = dynamic_cast<TraitObjectType*>(t.get())) {
+                if (tr->traitId == id) return tr;
+            }
+        }
+        return create<TraitObjectType>(id);
+    }
+    
     const FunctionType* getFunctionType(std::vector<std::string> paramNames, std::vector<const Type*> paramTypes, const Type* returnType, bool isCallSite = false, bool isVariadic = false) {
         // Full deduplication skipped for simplicity, just create
         return create<FunctionType>(std::move(paramNames), std::move(paramTypes), returnType, isCallSite, isVariadic);
@@ -655,5 +735,37 @@ public:
         return create<GenericParamType>(id, name);
     }
 };
+
+inline const Type* UnificationTable::deepResolve(const Type* t, TypeContext& ctx) const {
+    if (!t) return nullptr;
+    if (auto* inf = dynamic_cast<const InferenceVarType*>(t)) {
+        if (const Type* res = resolve(inf->varId)) {
+            return deepResolve(res, ctx);
+        }
+        return t; // unbound
+    }
+    if (auto* ref = dynamic_cast<const ReferenceType*>(t)) {
+        const Type* resolvedInner = deepResolve(ref->pointee, ctx);
+        if (resolvedInner != ref->pointee) return ctx.getReferenceType(resolvedInner, ref->isMutable);
+        return t;
+    }
+    if (auto* ptr = dynamic_cast<const PointerType*>(t)) {
+        const Type* resolvedInner = deepResolve(ptr->pointee, ctx);
+        if (resolvedInner != ptr->pointee) return ctx.getPointerType(resolvedInner, ptr->isMutable);
+        return t;
+    }
+    if (auto* tup = dynamic_cast<const TupleType*>(t)) {
+        bool changed = false;
+        std::vector<const Type*> resolvedElems;
+        for (auto* elem : tup->elements) {
+            const Type* resolvedElem = deepResolve(elem, ctx);
+            if (resolvedElem != elem) changed = true;
+            resolvedElems.push_back(resolvedElem);
+        }
+        if (changed) return ctx.getTupleType(resolvedElems);
+        return t;
+    }
+    return t; 
+}
 
 } // namespace fl

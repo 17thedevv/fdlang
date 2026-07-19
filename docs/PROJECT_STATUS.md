@@ -24,20 +24,24 @@ The frontend and middle-end are highly structured and currently passing **100% o
   - Validates missing return statements (for non-void functions).
   - Validates `break` and `continue` contexts.
 
-## 3. Recently Completed (A1.2, A1.4, A2.2, A3)
-- **Method Resolution**: Fully implemented via `MethodResolver` mapping receiver types to methods. Unified arguments (including `self`).
-- **Named Arguments**: Handled in `UnificationEngine`. Supports mixed positional/named arguments and detects duplicates/invalid orders.
-- **CFG Validation**: Added comprehensive reachability and control flow analysis.
-- **Test Coverage**: 7 test suites (`ASTManualTest`, `LexerTest`, `ParserTest`, `ResolverTest`, `DiagnosticTest`, `TypeCheckerTest`, `CFGTest`) are all **GREEN (Passed)**.
+## 3. Recently Completed (Phase 1-5)
+- **MVIRGenerator & LLVM Backend**: Fully implemented and passing compilation to native executables (`.exe`).
+- **Traits & Generics (Monomorphization)**: Fully implemented.
+- **VTable & Dynamic Dispatch (`dyn Trait`)**: Fully operational.
+- **Tuple & Pattern Matching (Basic)**: Implemented.
 
-## 4. Known Issues & Tech Debt
-- **`MVIRGenerator.cpp`**: Currently commented out in `CMakeLists.txt`. The AST has evolved rapidly (e.g., `PrintStmtNode` removed, `LiteralExpr` changes), and the MVIR (FDLang Intermediate Representation) generator is currently out of sync and needs an overhaul.
+## 4. Known Issues & Missing Features
+- **Standard Library**: We lack a standard library for file I/O, dynamic strings (`String`), and memory allocators.
+- **Advanced Syntax (Phase 6)**: The frontend parses `async`/`await`, `lambda`, `comptime`, and `unsafe`, but the backend generates empty stubs for these features.
 
-## 5. Next Steps
+## 5. Next Steps (Phase 6)
+We are moving into Phase 6 to implement the advanced features. See the detailed roadmap here:
+[Phase 6 Advanced Features Plan](./Phase6_Advanced_Features_Plan.md)
+
 When starting a new session, you can pick up from here:
-1. **Fix/Sync MVIRGenerator (Middle-End/Back-End Transition)**: Update MVIR generation to match the current AST so the compiler can lower the AST into IR.
-2. **Traits & Generics (A1.5 / Advanced)**: Implement trait bounds and generic instantiation.
-3. **Code Generation (BackEnd)**: LLVM IR translation.
+1. Review the Phase 6 plan.
+2. Implement **Unsafe Blocks**.
+3. Implement **Lambda / Closures**.
 
 ## How to resume in a new chat:
 Simply copy this prompt to the AI in the new chat:

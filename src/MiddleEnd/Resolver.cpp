@@ -18,6 +18,8 @@ namespace fl {
 // =============================================================================
 class ScopeManager {
 public:
+    uint16_t currentFunctionDepth = 0;
+
     ScopeManager(SymbolTable& table, DiagnosticEngine& diag)
         : table(table), diag(diag) {}
 
@@ -45,9 +47,11 @@ public:
         }
 
         SymbolID symId = table.declareSymbol(id, kind, currentScope, loc, declNode);
+        auto& sym = table.getMutableSymbol(symId);
+        sym.declaredDepth = currentFunctionDepth;
         if (declNode) {
             if (auto* d = dynamic_cast<DeclNode*>(declNode)) {
-                table.getMutableSymbol(symId).isExported = d->isExported;
+                sym.isExported = d->isExported;
             }
         }
         return symId;
@@ -315,7 +319,9 @@ public:
     void visit(MethodCallExpr&) override { }
     void visit(IndexExpr&) override { }
     void visit(MemberExpr&) override { }
+    void visit(TupleIndexExpr&) override { }
     void visit(CastExpr&) override { }
+    void visit(UnsizeCastExpr&) override { }
     void visit(ArrayLiteralExpr&) override { }
     void visit(TupleLiteralExpr&) override { }
     void visit(StructInitExpr&) override { }
@@ -409,7 +415,9 @@ public:
     void visit(MethodCallExpr&) override {}
     void visit(IndexExpr&) override {}
     void visit(MemberExpr&) override {}
+    void visit(TupleIndexExpr&) override {}
     void visit(CastExpr&) override {}
+    void visit(UnsizeCastExpr&) override {}
     void visit(ArrayLiteralExpr&) override {}
     void visit(TupleLiteralExpr&) override {}
     void visit(StructInitExpr&) override {}
@@ -427,6 +435,7 @@ public:
 class ResolutionVisitor : public ASTVisitor, public TypeVisitor, public PatternVisitor {
     ScopeManager& sm;
     DiagnosticEngine& diag;
+    std::vector<std::pair<uint16_t, LambdaExpr*>> activeLambdas;
 
 public:
     ResolutionVisitor(ScopeManager& sm, DiagnosticEngine& diag) : sm(sm), diag(diag) {}
@@ -452,6 +461,7 @@ public:
     }
 
     void visit(FunctionDeclNode& node) override { 
+        sm.currentFunctionDepth++;
         sm.enterExistingScope(node.bodyScopeId);
         
         for (auto& gp : node.genericParams) {
@@ -468,6 +478,7 @@ public:
         
         if (node.body) node.body->accept(static_cast<ASTVisitor&>(*this));
         sm.exitScope();
+        sm.currentFunctionDepth--;
     }
 
     void visit(ParamDeclNode& node) override {
@@ -641,7 +652,21 @@ public:
                     break;
                 }
             }
-            node.resolvedSymbol = id; std::cout << "[DEBUG] Resolved '" << node.segments.back() << "' to ID " << id << "\n";
+            node.resolvedSymbol = id; 
+            
+            if (id != kInvalidSymbolID) {
+                auto& sym = sm.table.getSymbol(id);
+                if (sym.kind == SymbolKind::Variable || sym.kind == SymbolKind::Parameter) {
+                    for (auto& pair : activeLambdas) {
+                        if (sym.declaredDepth < pair.first) {
+                            auto& caps = pair.second->capturedSymbols;
+                            if (std::find(caps.begin(), caps.end(), id) == caps.end()) {
+                                caps.push_back(id);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -683,9 +708,17 @@ public:
         // node.member is resolved in TypeChecker (since it depends on object's type)
     }
     
+    void visit(TupleIndexExpr& node) override {
+        node.object->accept(static_cast<ASTVisitor&>(*this));
+        // index is a literal uint32_t — no symbol resolution needed
+    }
+    
     void visit(CastExpr& node) override { 
         node.expr->accept(static_cast<ASTVisitor&>(*this));
         node.targetType->accept(static_cast<TypeVisitor&>(*this));
+    }
+    void visit(UnsizeCastExpr& node) override { 
+        node.expr->accept(static_cast<ASTVisitor&>(*this));
     }
     
     void visit(ArrayLiteralExpr& node) override { 
@@ -720,13 +753,22 @@ public:
     }
     
     void visit(LambdaExpr& node) override { 
+        sm.currentFunctionDepth++;
         sm.enterScope(ScopeKind::Function);
+        
+        // Register this lambda as active for capture analysis
+        activeLambdas.push_back({sm.currentFunctionDepth, &node});
+        
         for (auto& p : node.params) {
             p->accept(static_cast<ASTVisitor&>(*this)); // Bind lambda params
         }
         if (node.returnType) node.returnType->accept(static_cast<TypeVisitor&>(*this));
-        node.body->accept(static_cast<ASTVisitor&>(*this));
+        if (node.body) node.body->accept(static_cast<ASTVisitor&>(*this));
+        
+        activeLambdas.pop_back();
+        
         sm.exitScope();
+        sm.currentFunctionDepth--;
     }
     
     void visit(AwaitExpr& node) override { 

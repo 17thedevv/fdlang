@@ -240,13 +240,49 @@ struct VariantInst : public Instruction {
     std::string toString() const override;
 };
 
+struct MakeTraitObjectInst : public Instruction {
+    LocalId dest;
+    Operand value;
+    const Type* concreteType;
+    const Type* targetType;
+    std::vector<SymbolID> vtableMethods;
+
+    MakeTraitObjectInst(LocalId d, Operand v, const Type* c, const Type* t, std::vector<SymbolID> methods) 
+        : dest(std::move(d)), value(std::move(v)), concreteType(c), targetType(t), vtableMethods(std::move(methods)) {}
+    std::string toString() const override;
+};
+
 struct CallInst : public Instruction {
     std::optional<LocalId> dest;
     Operand func;
     std::vector<Operand> args;
+    const FunctionType* funcType; // Needed for opaque pointer indirect calls
 
-    CallInst(std::optional<LocalId> d, Operand f, std::vector<Operand> a)
-        : dest(std::move(d)), func(std::move(f)), args(std::move(a)) {}
+    CallInst(std::optional<LocalId> d, Operand f, std::vector<Operand> a, const FunctionType* fTy = nullptr)
+        : dest(std::move(d)), func(std::move(f)), args(std::move(a)), funcType(fTy) {}
+    std::string toString() const override;
+};
+
+struct VirtualCallInst : public Instruction {
+    std::optional<LocalId> dest;
+    Operand receiver;
+    const Type* traitType;
+    size_t methodIndex;
+    const FunctionType* methodType;
+    std::vector<Operand> args;
+
+    VirtualCallInst(std::optional<LocalId> d, Operand r, const Type* t, size_t mIdx, const FunctionType* mTy, std::vector<Operand> a)
+        : dest(std::move(d)), receiver(std::move(r)), traitType(t), methodIndex(mIdx), methodType(mTy), args(std::move(a)) {}
+    std::string toString() const override;
+};
+
+struct AwaitInst : public Instruction {
+    LocalId dest;
+    Operand futureVal;
+    const Type* innerType;
+    
+    AwaitInst(LocalId d, Operand f, const Type* t)
+        : dest(std::move(d)), futureVal(std::move(f)), innerType(t) {}
     std::string toString() const override;
 };
 
@@ -318,6 +354,7 @@ struct Function {
     std::vector<Param> params;
     const Type* returnType;
     std::vector<std::unique_ptr<BasicBlock>> blocks;
+    bool isAsync = false;
 
     Function(GlobalId n, const Type* ret) : name(std::move(n)), returnType(ret) {}
     std::string toString() const;

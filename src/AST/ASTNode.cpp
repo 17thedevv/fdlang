@@ -40,7 +40,9 @@ void AssignExpr::accept(ASTVisitor& v) { v.visit(*this); }
 void CallExpr::accept(ASTVisitor& v) { v.visit(*this); }
 void IndexExpr::accept(ASTVisitor& v) { v.visit(*this); }
 void MemberExpr::accept(ASTVisitor& v) { v.visit(*this); }
+void TupleIndexExpr::accept(ASTVisitor& v) { v.visit(*this); }
 void CastExpr::accept(ASTVisitor& v) { v.visit(*this); }
+void UnsizeCastExpr::accept(ASTVisitor& v) { v.visit(*this); }
 void ArrayLiteralExpr::accept(ASTVisitor& v) { v.visit(*this); }
 void TupleLiteralExpr::accept(ASTVisitor& v) { v.visit(*this); }
 void StructInitExpr::accept(ASTVisitor& v) { v.visit(*this); }

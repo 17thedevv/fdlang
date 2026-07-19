@@ -20,7 +20,7 @@ link_directories(${LLVM_LIBRARY_DIRS})
 link_directories("C:/Program Files/Microsoft Visual Studio/18/Community/DIA SDK/lib/amd64")
 add_definitions(${LLVM_DEFINITIONS})
 
-llvm_map_components_to_libnames(LLVM_LIBS Core ExecutionEngine Interpreter Support native)
+llvm_map_components_to_libnames(LLVM_LIBS Core ExecutionEngine Interpreter Support native Passes Coroutines)
 
 # ==========================================
 # PHẦN 2: CẤU HÌNH DỰ ÁN MELLIS
@@ -46,6 +46,7 @@ set(MIDDLEEND_SRC
     src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/MVIR.cpp
     src/MiddleEnd/MVIRGenerator.cpp
+    src/MiddleEnd/MVIROptimizer.cpp
     src/MiddleEnd/Mangle.cpp
     src/MiddleEnd/SubstitutionVisitor.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
@@ -192,7 +193,7 @@ add_executable(test_mvir_generator
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
     src/Support/Diagnostic.cpp
@@ -212,7 +213,7 @@ add_executable(test_borrow_checker
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
@@ -233,7 +234,7 @@ add_executable(test_llvmir_generator
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
     src/BackEnd/LLVMIRGenerator.cpp
@@ -255,7 +256,7 @@ add_executable(test_executable_generator
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
     src/BackEnd/LLVMIRGenerator.cpp

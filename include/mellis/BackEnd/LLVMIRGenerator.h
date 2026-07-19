@@ -56,6 +56,9 @@ private:
     
     // Maps MVIR LabelId ("bb0") to the LLVM BasicBlock.
     std::unordered_map<std::string, llvm::BasicBlock*> blocks_;
+    
+    // Coroutine Handle for the current async function
+    llvm::Value* currentCoroHdl_ = nullptr;
 
     // ── Translation Helpers ──────────────────────────────────────────────────
 

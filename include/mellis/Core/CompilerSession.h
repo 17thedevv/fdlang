@@ -17,7 +17,7 @@ public:
 
     /// Biên dịch file đầu vào thành Executable.
     /// Trả về true nếu thành công, false nếu có lỗi.
-    bool compile(const std::string& filepath, bool verbose = false);
+    bool compile(const std::string& filepath, bool verbose = false, int optLevel = 0);
 
     DiagnosticEngine& getDiagnostics() { return diag_; }
 

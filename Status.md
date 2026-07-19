@@ -146,7 +146,7 @@ Source (.ms)
 
 ```
 Phase 1 — Lexer                 ██████████  100% ✅
-Phase 1 — Parser                █████████░   90% (tuple index, for-in)
+Phase 1 — Parser                █████████░   90% (tu ple index, for-in)
 Phase 1 — AST                   ██████████  100% ✅
 
 Phase 2 — Resolver              ██████████  100% ✅

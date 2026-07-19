@@ -5,7 +5,9 @@
 
 namespace fl {
 
-Lexer::Lexer(std::string_view sourceCode) : source(sourceCode), position(0) {}
+Lexer::Lexer(std::string_view sourceCode)
+    : source(sourceCode), position(0),
+      line_(1), col_(1), startLine_(1), startCol_(1) {}
 
 bool Lexer::isAtEnd() const {
     return position >= source.length();
@@ -28,7 +30,10 @@ char Lexer::peekNextNext() const {
 
 char Lexer::advance() {
     if (isAtEnd()) return '\0';
-    return source[position++];
+    char c = source[position++];
+    if (c == '\n') { line_++; col_ = 1; }
+    else            { col_++; }
+    return c;
 }
 
 bool Lexer::match(char expected) {
@@ -42,6 +47,8 @@ Token Lexer::makeToken(TokenType type, uint32_t startOffset, uint32_t length) {
     token.type = type;
     token.text = source.substr(startOffset, length);
     token.byteOffset = startOffset;
+    token.line = startLine_;
+    token.col  = startCol_;
     return token;
 }
 
@@ -298,6 +305,10 @@ Token Lexer::stringLiteral(bool isRaw, bool isByte) {
 
 Token Lexer::nextToken() {
     skipWhitespaceAndComments();
+
+    // Ghi nhớ vị trí bắt đầu của token (sau whitespace, trước consume bất kỳ char nào)
+    startLine_ = line_;
+    startCol_  = col_;
     uint32_t startOffset = position;
 
     if (isAtEnd()) return makeToken(TokenType::END_OF_FILE, startOffset, 0);

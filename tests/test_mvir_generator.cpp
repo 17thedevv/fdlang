@@ -54,9 +54,8 @@ void assertContains(const std::string& fullText, const std::string& substring) {
 void test01_variable_declaration() {
     std::string mvir = generateMVIR("fn foo() { dec x = 42; }");
     
-    // Should contain an alloca for i32 and a store of 42
-    assertContains(mvir, "alloca i32");
-    assertContains(mvir, "store 42, %0");
+    assertContains(mvir, "local i32");
+    assertContains(mvir, "store i32 42, %0");
     std::cout << "[OK] test01_variable_declaration\n";
 }
 

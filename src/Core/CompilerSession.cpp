@@ -8,6 +8,7 @@
 #include "mellis/MiddleEnd/MatchAnalyzer.h"
 #include "mellis/MiddleEnd/MVIRGenerator.h"
 #include "mellis/MiddleEnd/MonomorphizationEngine.h"
+#include "mellis/MiddleEnd/MVIROptimizer.h"
 #include "mellis/MiddleEnd/BorrowChecker.h"
 #include "mellis/BackEnd/LLVMIRGenerator.h"
 #include "mellis/BackEnd/ExecutableGenerator.h"
@@ -19,7 +20,7 @@ namespace fl {
 CompilerSession::CompilerSession() : sourceManager_(diag_) {}
 CompilerSession::~CompilerSession() = default;
 
-bool CompilerSession::compile(const std::string& filepath, bool verbose) {
+bool CompilerSession::compile(const std::string& filepath, bool verbose, int optLevel) {
     FileID mainFileId = sourceManager_.loadFile(filepath);
     if (mainFileId == SourceManager::kInvalidFileID) {
         diag_.flush();
@@ -114,6 +115,21 @@ bool CompilerSession::compile(const std::string& filepath, bool verbose) {
         std::cout << mvirModule->toString() << "\n";
     }
 
+    // ── Phase 6.5: MVIR Optimization ──────────────────────────────────────────
+    if (optLevel >= 1) {
+        if (verbose) std::cout << "[8.05] Toi uu hoa MVIR (MVIROptimizer -O1)..." << std::endl;
+        MVIROptimizer mvirOpt(diag_);
+        bool optimized = mvirOpt.optimize(*mvirModule);
+        if (verbose) {
+            if (optimized) {
+                std::cout << "[8.06] MVIR sau khi toi uu:\n";
+                std::cout << mvirModule->toString() << "\n";
+            } else {
+                std::cout << "[8.06] Khong co toi uu nao duoc thuc hien.\n";
+            }
+        }
+    }
+
     // ── Phase 7: Borrow Checker ──────────────────────────────────────────────
     if (verbose) std::cout << "[8.1] Kiem tra muon tham chieu (BorrowChecker)..." << std::endl;
     BorrowChecker borrowChecker(mvirModule.get(), diag_);
@@ -131,7 +147,7 @@ bool CompilerSession::compile(const std::string& filepath, bool verbose) {
     
     LLVMIRGenerator llvmGen(llvmContext, llvmModule, symbolTable_);
     bool llvmOk = llvmGen.generate(mvirModule.get());
-    llvmModule.print(llvm::errs(), nullptr);
+    // llvmModule.print(llvm::errs(), nullptr);
     
     if (!llvmOk) {
         diag_.error(SourceLocation::invalid(), "Loi trong qua trinh sinh LLVM IR.");

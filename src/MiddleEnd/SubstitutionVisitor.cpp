@@ -149,9 +149,15 @@ void SubstitutionVisitor::visit(IndexExpr& n) {
 void SubstitutionVisitor::visit(MemberExpr& n) {
     if (n.object) n.object->accept(*this);
 }
+void SubstitutionVisitor::visit(TupleIndexExpr& n) {
+    if (n.object) n.object->accept(*this);
+}
 void SubstitutionVisitor::visit(CastExpr& n) {
     if (n.expr) n.expr->accept(*this);
     n.targetType = substituteType(std::move(n.targetType));
+}
+void SubstitutionVisitor::visit(UnsizeCastExpr& n) {
+    if (n.expr) n.expr->accept(*this);
 }
 void SubstitutionVisitor::visit(ArrayLiteralExpr& n) {
     for (auto& e : n.elements) e->accept(*this);

@@ -1,8 +1,11 @@
 #include "mellis/BackEnd/LLVMIRGenerator.h"
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
 #include <iostream>
 #include <cassert>
+#include "mellis/AST/DeclNode.h"
 
 namespace fl {
 
@@ -41,14 +44,20 @@ bool LLVMIRGenerator::generate(const mvir::Module* mvirModule) {
         llvm::Function::Create(fType, llvm::Function::ExternalLinkage, funcName, module_);
     }
 
+    bool hasAsyncMain = false;
     for (const auto& func : mvirModule->functions) {
         std::string funcName = func->name.name.substr(1);
+        if (funcName == "main" && func->isAsync) {
+            funcName = "__fd_main";
+            hasAsyncMain = true;
+        }
         std::vector<llvm::Type*> paramTypes;
         for (const auto& param : func->params) {
             paramTypes.push_back(mapType(param.type));
         }
         llvm::FunctionType* fType = llvm::FunctionType::get(mapType(func->returnType), paramTypes, false);
-        llvm::Function::Create(fType, llvm::Function::ExternalLinkage, funcName, module_);
+        llvm::Function* f = llvm::Function::Create(fType, llvm::Function::ExternalLinkage, funcName, module_);
+        globalValues_[func->name.name] = f;
     }
 
     // 1.5 Global string literals
@@ -64,13 +73,74 @@ bool LLVMIRGenerator::generate(const mvir::Module* mvirModule) {
         }
     }
 
-    // Pass 2: Translate instructions
+    // Translate instructions
+    std::cout << "[LLVMGen] Start generating..." << std::endl;
     for (const auto& func : mvirModule->functions) {
         createFunctionStructure(func.get());
         emitFunctionBody(func.get());
     }
+    std::cout << "[LLVMGen] Functions built." << std::endl;
 
-    //module_.print(llvm::errs(), nullptr); 
+    if (hasAsyncMain) {
+        // Generate a synchronous C main that calls block_on
+        llvm::FunctionType* mainTy = llvm::FunctionType::get(llvm::Type::getInt32Ty(context_), {}, false);
+        llvm::Function* mainFn = llvm::Function::Create(mainTy, llvm::Function::ExternalLinkage, "main", module_);
+        llvm::BasicBlock* entryBB = llvm::BasicBlock::Create(context_, "entry", mainFn);
+        builder_.SetInsertPoint(entryBB);
+        
+        llvm::Function* fdMain = module_.getFunction("__fd_main");
+        llvm::Value* fut = builder_.CreateCall(fdMain);
+        
+        llvm::BasicBlock* checkBB = llvm::BasicBlock::Create(context_, "check", mainFn);
+        llvm::BasicBlock* resumeBB = llvm::BasicBlock::Create(context_, "resume", mainFn);
+        llvm::BasicBlock* doneBB = llvm::BasicBlock::Create(context_, "done", mainFn);
+        
+        builder_.CreateBr(checkBB);
+        
+        builder_.SetInsertPoint(checkBB);
+        llvm::Function* coroDoneFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_done);
+        llvm::Value* isDone = builder_.CreateCall(coroDoneFn, {fut});
+        builder_.CreateCondBr(isDone, doneBB, resumeBB);
+        
+        builder_.SetInsertPoint(resumeBB);
+        llvm::Function* coroResumeFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_resume);
+        builder_.CreateCall(coroResumeFn, {fut});
+        builder_.CreateBr(checkBB);
+        
+        builder_.SetInsertPoint(doneBB);
+        llvm::Function* coroPromiseFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_promise);
+        llvm::Value* promisePtr = builder_.CreateCall(coroPromiseFn, {fut, builder_.getInt32(8), builder_.getInt1(false)});
+        
+        llvm::StructType* promiseTy = llvm::StructType::get(context_, {llvm::Type::getInt8Ty(context_), llvm::Type::getInt32Ty(context_)});
+        llvm::Value* resPtr = builder_.CreateStructGEP(promiseTy, promisePtr, 1);
+        llvm::Value* res = builder_.CreateLoad(llvm::Type::getInt32Ty(context_), resPtr);
+        builder_.CreateRet(res);
+    }
+
+    // Inject runtime helpers
+    llvm::FunctionType* doneFnTy = llvm::FunctionType::get(llvm::Type::getInt1Ty(context_), {llvm::PointerType::getUnqual(context_)}, false);
+    llvm::Function* doneFn = llvm::Function::Create(doneFnTy, llvm::Function::ExternalLinkage, "mellis_coro_is_done", module_);
+    llvm::BasicBlock* doneBB = llvm::BasicBlock::Create(context_, "entry", doneFn);
+    builder_.SetInsertPoint(doneBB);
+    llvm::Function* coroDoneIntrin = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_done);
+    llvm::Value* isDone = builder_.CreateCall(coroDoneIntrin, {doneFn->getArg(0)});
+    builder_.CreateRet(isDone);
+
+    llvm::FunctionType* resumeFnTy = llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {llvm::PointerType::getUnqual(context_)}, false);
+    llvm::Function* resumeFn = llvm::Function::Create(resumeFnTy, llvm::Function::ExternalLinkage, "mellis_coro_resume", module_);
+    llvm::BasicBlock* resumeBB = llvm::BasicBlock::Create(context_, "entry", resumeFn);
+    builder_.SetInsertPoint(resumeBB);
+    llvm::Function* coroResumeIntrin = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_resume);
+    builder_.CreateCall(coroResumeIntrin, {resumeFn->getArg(0)});
+    builder_.CreateRetVoid();
+
+    std::cout << "[LLVMGen] Coroutines built." << std::endl;
+    std::error_code EC;
+    llvm::raw_fd_ostream os("llvm.ir", EC);
+    if (!EC) {
+        module_.print(os, nullptr);
+        os.flush();
+    }
     bool broken = llvm::verifyModule(module_, &llvm::errs());
     return !broken;
 }
@@ -100,10 +170,17 @@ llvm::Type* LLVMIRGenerator::mapType(const Type* type) {
             default: return llvm::Type::getVoidTy(context_);
         }
     }
+
     if (auto* ptr = dynamic_cast<const PointerType*>(type)) {
+        if (dynamic_cast<const TraitObjectType*>(ptr->pointee)) {
+            return llvm::StructType::get(context_, { llvm::PointerType::getUnqual(context_), llvm::PointerType::getUnqual(context_) });
+        }
         return llvm::PointerType::getUnqual(context_);
     }
     if (auto* ref = dynamic_cast<const ReferenceType*>(type)) {
+        if (dynamic_cast<const TraitObjectType*>(ref->pointee)) {
+            return llvm::StructType::get(context_, { llvm::PointerType::getUnqual(context_), llvm::PointerType::getUnqual(context_) });
+        }
         return llvm::PointerType::getUnqual(context_);
     }
     if (auto* st = dynamic_cast<const StructType*>(type)) {
@@ -130,6 +207,16 @@ llvm::Type* LLVMIRGenerator::mapType(const Type* type) {
     if (auto* arr = dynamic_cast<const ArrayType*>(type)) {
         return llvm::ArrayType::get(mapType(arr->elementType), arr->length);
     }
+    if (auto* closTy = dynamic_cast<const ClosureType*>(type)) {
+        std::vector<llvm::Type*> elements;
+        for (auto* fTy : closTy->fieldTypes) {
+            elements.push_back(mapType(fTy));
+        }
+        return llvm::StructType::get(context_, elements, false);
+    }
+    if (auto* futTy = dynamic_cast<const FutureType*>(type)) {
+        return llvm::PointerType::getUnqual(context_); // Future is just a pointer to the Coroutine Frame (Handle)
+    }
     return llvm::Type::getVoidTy(context_);
 }
 
@@ -138,7 +225,7 @@ llvm::Value* LLVMIRGenerator::mapOperand(const mvir::Operand& op) {
         const auto& local = std::get<mvir::LocalId>(op);
         auto it = localValues_.find(local.name);
         if (it != localValues_.end()) return it->second;
-        assert(false && "LocalId not found in environment");
+        std::cerr << "LocalId not found in environment: " << local.name << std::endl;
         return nullptr;
     } else if (std::holds_alternative<mvir::GlobalId>(op)) {
         const auto& global = std::get<mvir::GlobalId>(op);
@@ -149,16 +236,16 @@ llvm::Value* LLVMIRGenerator::mapOperand(const mvir::Operand& op) {
         llvm::Function* f = module_.getFunction(name);
         if (f) return f;
         
-        assert(false && "Global function/value not found");
+        std::cerr << "Global function/value not found: " << name << std::endl;
         return nullptr;
     } else if (std::holds_alternative<mvir::Number>(op)) {
         const auto& num = std::get<mvir::Number>(op);
-        return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), std::stoull(num.value), 10);
+        return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), std::stoull(num.value, nullptr, 10), true);
     } else if (std::holds_alternative<mvir::Boolean>(op)) {
         const auto& b = std::get<mvir::Boolean>(op);
         return llvm::ConstantInt::get(llvm::Type::getInt1Ty(context_), b.value ? 1 : 0);
     }
-    assert(false && "Unknown operand type");
+    std::cerr << "Unknown operand type" << std::endl;
     return nullptr;
 }
 
@@ -169,8 +256,7 @@ void LLVMIRGenerator::createFunctionStructure(const mvir::Function* func) {
     blocks_.clear();
     pointerTypes_.clear();
     
-    std::string funcName = func->name.name.substr(1);
-    llvm::Function* llvmFunc = module_.getFunction(funcName);
+    llvm::Function* llvmFunc = llvm::cast<llvm::Function>(globalValues_[func->name.name]);
     
     size_t idx = 0;
     for (auto& arg : llvmFunc->args()) {
@@ -186,11 +272,112 @@ void LLVMIRGenerator::createFunctionStructure(const mvir::Function* func) {
 }
 
 void LLVMIRGenerator::emitFunctionBody(const mvir::Function* func) {
+    std::cout << "[LLVMGen] Generating body for: " << func->name.name << std::endl;
+    auto it = globalValues_.find(func->name.name);
+    if (it == globalValues_.end()) {
+        std::cerr << "[LLVMGen] Function not found in globalValues: " << func->name.name << std::endl;
+        return;
+    }
+    llvm::Function* llvmFunc = llvm::cast<llvm::Function>(it->second);
+    if (func->isAsync) {
+        llvmFunc->setPresplitCoroutine();
+    }
+    bool isEntry = true;
     for (const auto& block : func->blocks) {
         llvm::BasicBlock* bb = blocks_[block->label.name];
         builder_.SetInsertPoint(bb);
         
+        if (isEntry && func->isAsync) {
+            llvm::Function* coroIdFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_id);
+            llvm::Value* nullPtr = llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(context_));
+            llvm::Value* coroId = builder_.CreateCall(coroIdFn, {
+                llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), 0),
+                nullPtr, nullPtr, nullPtr
+            });
+
+            llvm::Function* coroSizeFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_size, {llvm::Type::getInt32Ty(context_)});
+            llvm::Value* coroSize = builder_.CreateCall(coroSizeFn);
+
+            llvm::FunctionCallee allocFn = module_.getOrInsertFunction("malloc", llvm::PointerType::getUnqual(context_), llvm::Type::getInt32Ty(context_));
+            llvm::Value* alloc = builder_.CreateCall(allocFn, {coroSize});
+
+            llvm::Function* coroBeginFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_begin);
+            currentCoroHdl_ = builder_.CreateCall(coroBeginFn, {coroId, alloc});
+            
+            // Promise Initialization
+            llvm::Type* promiseInnerTy = llvm::Type::getVoidTy(context_);
+            if (auto* futTy = dynamic_cast<const FutureType*>(func->returnType)) {
+                promiseInnerTy = mapType(futTy->innerType);
+            }
+            llvm::StructType* promiseTy = llvm::StructType::get(context_, {llvm::Type::getInt8Ty(context_), promiseInnerTy});
+            
+            llvm::Function* coroPromiseFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_promise);
+            llvm::Value* promisePtr = builder_.CreateCall(coroPromiseFn, {currentCoroHdl_, builder_.getInt32(8), builder_.getInt1(false)});
+            
+            // Set state = 0 (Pending)
+            llvm::Value* statePtr = builder_.CreateStructGEP(promiseTy, promisePtr, 0);
+            builder_.CreateStore(builder_.getInt8(0), statePtr);
+        }
+        isEntry = false;
+        
         for (const auto& inst : block->instructions) {
+            if (auto* awt = dynamic_cast<const mvir::AwaitInst*>(inst.get())) {
+                llvm::Value* futHdl = mapOperand(awt->futureVal);
+                
+                llvm::Type* promiseInnerTy = mapType(awt->innerType);
+                llvm::StructType* promiseTy = llvm::StructType::get(context_, {llvm::Type::getInt8Ty(context_), promiseInnerTy});
+                
+                llvm::Function* coroPromiseFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_promise);
+                llvm::Value* promisePtr = builder_.CreateCall(coroPromiseFn, {futHdl, builder_.getInt32(8), builder_.getInt1(false)});
+                
+                llvm::BasicBlock* checkBB = llvm::BasicBlock::Create(context_, "await.check", builder_.GetInsertBlock()->getParent());
+                llvm::BasicBlock* resumeInnerBB = llvm::BasicBlock::Create(context_, "await.resume_inner", builder_.GetInsertBlock()->getParent());
+                llvm::BasicBlock* suspendBB = llvm::BasicBlock::Create(context_, "await.suspend", builder_.GetInsertBlock()->getParent());
+                llvm::BasicBlock* readyBB = llvm::BasicBlock::Create(context_, "await.ready", builder_.GetInsertBlock()->getParent());
+                
+                builder_.CreateBr(checkBB);
+                builder_.SetInsertPoint(checkBB);
+                
+                llvm::Value* statePtr = builder_.CreateStructGEP(promiseTy, promisePtr, 0);
+                llvm::Value* stateVal = builder_.CreateLoad(llvm::Type::getInt8Ty(context_), statePtr);
+                llvm::Value* isDone = builder_.CreateICmpEQ(stateVal, builder_.getInt8(1));
+                builder_.CreateCondBr(isDone, readyBB, resumeInnerBB);
+                
+                // Resume inner future
+                builder_.SetInsertPoint(resumeInnerBB);
+                llvm::Function* coroResumeFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_resume);
+                builder_.CreateCall(coroResumeFn, {futHdl});
+                
+                // After resuming, check state again
+                llvm::Value* stateVal2 = builder_.CreateLoad(llvm::Type::getInt8Ty(context_), statePtr);
+                llvm::Value* isDone2 = builder_.CreateICmpEQ(stateVal2, builder_.getInt8(1));
+                builder_.CreateCondBr(isDone2, readyBB, suspendBB);
+                
+                // Suspend outer future
+                builder_.SetInsertPoint(suspendBB);
+                
+                // Suspend the current coroutine
+                llvm::Function* coroSaveFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_save);
+                llvm::Value* saveRes = builder_.CreateCall(coroSaveFn, {currentCoroHdl_});
+                llvm::Function* coroSuspendFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_suspend);
+                llvm::Value* suspendRes = builder_.CreateCall(coroSuspendFn, {saveRes, builder_.getInt1(false)});
+                
+                // Switch on suspend result
+                llvm::BasicBlock* cleanupBB = llvm::BasicBlock::Create(context_, "await.cleanup", builder_.GetInsertBlock()->getParent());
+                llvm::SwitchInst* switchInst = builder_.CreateSwitch(suspendRes, suspendBB, 2);
+                switchInst->addCase(builder_.getInt8(0), checkBB); // Resumed, check again
+                switchInst->addCase(builder_.getInt8(1), cleanupBB); // Destroyed
+                
+                builder_.SetInsertPoint(cleanupBB);
+                builder_.CreateUnreachable(); // We don't implement full cleanup logic yet
+                
+                // Ready state
+                builder_.SetInsertPoint(readyBB);
+                llvm::Value* resultPtr = builder_.CreateStructGEP(promiseTy, promisePtr, 1);
+                llvm::Value* res = builder_.CreateLoad(promiseInnerTy, resultPtr);
+                localValues_[awt->dest.name] = res;
+                continue;
+            }
             emitInstruction(inst.get());
         }
         
@@ -200,6 +387,7 @@ void LLVMIRGenerator::emitFunctionBody(const mvir::Function* func) {
             builder_.CreateRetVoid();
         }
     }
+    currentCoroHdl_ = nullptr;
 }
 
 void LLVMIRGenerator::emitInstruction(const mvir::Instruction* inst) {
@@ -298,10 +486,64 @@ void LLVMIRGenerator::emitInstruction(const mvir::Instruction* inst) {
         res->setName(unary->dest.name.substr(1));
         localValues_[unary->dest.name] = res;
     }
+    else if (auto* mk = dynamic_cast<const mvir::MakeTraitObjectInst*>(inst)) {
+        llvm::Value* val = mapOperand(mk->value);
+        llvm::StructType* fatPtrTy = llvm::StructType::get(context_, { llvm::PointerType::getUnqual(context_), llvm::PointerType::getUnqual(context_) });
+        
+        llvm::ArrayType* vtableTy = llvm::ArrayType::get(llvm::PointerType::getUnqual(context_), mk->vtableMethods.size());
+        
+        std::vector<llvm::Constant*> methodPtrs;
+        for (auto methodId : mk->vtableMethods) {
+            if (methodId == kInvalidSymbolID) {
+                methodPtrs.push_back(llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(context_)));
+                continue;
+            }
+            std::string methodName = symTable_.getSymbol(methodId).name.str();
+            llvm::Function* func = module_.getFunction(methodName);
+            if (func) {
+                methodPtrs.push_back(func);
+            } else {
+                methodPtrs.push_back(llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(context_)));
+            }
+        }
+        llvm::Constant* vtableInit = llvm::ConstantArray::get(vtableTy, methodPtrs);
+        
+        std::string vtableName = "vtable." + mk->concreteType->toString() + "." + mk->targetType->toString();
+        std::replace(vtableName.begin(), vtableName.end(), ' ', '_');
+        std::replace(vtableName.begin(), vtableName.end(), '&', 'r');
+        std::replace(vtableName.begin(), vtableName.end(), '*', 'p');
+        
+        llvm::GlobalVariable* vtableGlobal = module_.getNamedGlobal(vtableName);
+        if (!vtableGlobal) {
+            vtableGlobal = new llvm::GlobalVariable(module_, vtableTy, true, llvm::GlobalValue::PrivateLinkage, vtableInit, vtableName);
+        }
+        
+        llvm::Value* fatPtr = llvm::UndefValue::get(fatPtrTy);
+        fatPtr = builder_.CreateInsertValue(fatPtr, val, {0});
+        fatPtr = builder_.CreateInsertValue(fatPtr, vtableGlobal, {1});
+        
+        localValues_[mk->dest.name] = fatPtr;
+    }
     else if (auto* call = dynamic_cast<const mvir::CallInst*>(inst)) {
         llvm::FunctionCallee fcallee;
-        fcallee = module_.getFunction(std::get<mvir::GlobalId>(call->func).name.substr(1));
-        assert(fcallee && "Function not found");
+        if (std::holds_alternative<mvir::GlobalId>(call->func)) {
+            fcallee = module_.getFunction(std::get<mvir::GlobalId>(call->func).name.substr(1));
+            if (!fcallee) {
+                std::cerr << "Function not found: " << std::get<mvir::GlobalId>(call->func).name << std::endl;
+            }
+        } else {
+            llvm::Value* calleeVal = mapOperand(call->func);
+            if (!call->funcType) {
+                std::cerr << "Indirect call MUST have funcType" << std::endl;
+            }
+            std::vector<llvm::Type*> paramTys;
+            for (auto* p : call->funcType->paramTypes) paramTys.push_back(mapType(p));
+            if (call->args.size() > call->funcType->paramTypes.size()) {
+                paramTys.insert(paramTys.begin(), llvm::PointerType::getUnqual(context_));
+            }
+            llvm::FunctionType* llvmFuncTy = llvm::FunctionType::get(mapType(call->funcType->returnType), paramTys, false);
+            fcallee = llvm::FunctionCallee(llvmFuncTy, calleeVal);
+        }
         
         std::vector<llvm::Value*> args;
         for (const auto& arg : call->args) {
@@ -312,6 +554,43 @@ void LLVMIRGenerator::emitInstruction(const mvir::Instruction* inst) {
         if (call->dest && !res->getType()->isVoidTy()) {
             res->setName(call->dest->name.substr(1));
             localValues_[call->dest->name] = res;
+        }
+    }
+    else if (auto* vcall = dynamic_cast<const mvir::VirtualCallInst*>(inst)) {
+        llvm::Value* fatPtr = mapOperand(vcall->receiver);
+        
+        llvm::Value* dataPtr = builder_.CreateExtractValue(fatPtr, {0});
+        llvm::Value* vtablePtr = builder_.CreateExtractValue(fatPtr, {1});
+        
+        llvm::Type* fnPtrTy = llvm::PointerType::getUnqual(context_);
+        llvm::Value* methodIndexVal = builder_.getInt32(vcall->methodIndex);
+        llvm::Value* methodPtrPtr = builder_.CreateGEP(fnPtrTy, vtablePtr, methodIndexVal);
+        llvm::Value* methodPtr = builder_.CreateLoad(fnPtrTy, methodPtrPtr);
+        
+        std::vector<llvm::Value*> args;
+        args.push_back(dataPtr);
+        for (size_t i = 1; i < vcall->args.size(); ++i) {
+            args.push_back(mapOperand(vcall->args[i]));
+        }
+        
+        llvm::FunctionType* fnTy = nullptr;
+        if (vcall->methodType) {
+            std::vector<llvm::Type*> paramTys;
+            paramTys.push_back(llvm::PointerType::getUnqual(context_)); 
+            for (size_t i = 1; i < vcall->methodType->paramTypes.size(); ++i) {
+                paramTys.push_back(mapType(vcall->methodType->paramTypes[i]));
+            }
+            llvm::Type* retTy = mapType(vcall->methodType->returnType);
+            fnTy = llvm::FunctionType::get(retTy, paramTys, false);
+        }
+        
+        if (!fnTy) {
+            std::cerr << "Failed to build function type for virtual call" << std::endl;
+        }
+        llvm::Value* res = builder_.CreateCall(fnTy, methodPtr, args);
+        if (vcall->dest && !res->getType()->isVoidTy()) {
+            res->setName(vcall->dest->name.substr(1));
+            localValues_[vcall->dest->name] = res;
         }
     }
     else if (auto* variant = dynamic_cast<const mvir::VariantInst*>(inst)) {
@@ -384,7 +663,7 @@ void LLVMIRGenerator::emitTerminator(const mvir::Terminator* term) {
         llvm::BasicBlock* defaultBB = blocks_[sw->defaultTarget.name];
         llvm::SwitchInst* switchInst = builder_.CreateSwitch(cond, defaultBB, sw->cases.size());
         for (const auto& c : sw->cases) {
-            llvm::ConstantInt* caseVal = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), std::stoull(c.first.value), 10);
+            llvm::ConstantInt* caseVal = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), std::stoull(c.first.value, nullptr, 10), true);
             llvm::BasicBlock* caseBB = blocks_[c.second.name];
             switchInst->addCase(caseVal, caseBB);
         }
@@ -392,7 +671,28 @@ void LLVMIRGenerator::emitTerminator(const mvir::Terminator* term) {
     else if (auto* ret = dynamic_cast<const mvir::RetTerm*>(term)) {
         if (ret->value) {
             llvm::Value* val = mapOperand(*(ret->value));
-            builder_.CreateRet(val);
+            if (currentCoroHdl_) {
+                llvm::Function* coroPromiseFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_promise);
+                llvm::Value* promisePtr = builder_.CreateCall(coroPromiseFn, {currentCoroHdl_, builder_.getInt32(8), builder_.getInt1(false)});
+                
+                llvm::Type* promiseInnerTy = val->getType();
+                llvm::StructType* promiseTy = llvm::StructType::get(context_, {llvm::Type::getInt8Ty(context_), promiseInnerTy});
+                
+                // Write state = 1 (Done)
+                llvm::Value* statePtr = builder_.CreateStructGEP(promiseTy, promisePtr, 0);
+                builder_.CreateStore(builder_.getInt8(1), statePtr);
+                
+                // Write Result
+                llvm::Value* resPtr = builder_.CreateStructGEP(promiseTy, promisePtr, 1);
+                builder_.CreateStore(val, resPtr);
+                
+                llvm::Function* coroEndFn = llvm::Intrinsic::getDeclaration(&module_, llvm::Intrinsic::coro_end);
+                builder_.CreateCall(coroEndFn, {currentCoroHdl_, builder_.getInt1(0), llvm::ConstantTokenNone::get(context_)});
+                
+                builder_.CreateRet(currentCoroHdl_);
+            } else {
+                builder_.CreateRet(val);
+            }
         } else {
             builder_.CreateRetVoid();
         }

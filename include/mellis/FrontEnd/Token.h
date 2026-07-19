@@ -99,6 +99,7 @@ namespace fl {
         KW_STRUCT,
         KW_ENUM,
         KW_TRAIT,
+        KW_DYN,
         KW_IMPL,
         KW_UNSAFE,
         KW_USE,
@@ -113,7 +114,6 @@ namespace fl {
         KW_AWAIT,
         KW_ASYNC,
         KW_COMPTIME,
-        KW_DYN,
         KW_SELF_VAL, // self
         KW_SELF_TYP, // Self
         
@@ -124,13 +124,15 @@ namespace fl {
     public:
         TokenType type;
         std::string_view text;
-        uint32_t byteOffset; // offset in the source code
+        uint32_t byteOffset; // byte offset in the source code
+        uint32_t line = 0;   // 1-indexed source line (0 = not tracked)
+        uint32_t col  = 0;   // 1-indexed source column (0 = not tracked)
         
         // Payload bổ sung cho Token đặc biệt
         union {
             BuiltinKind builtinKind;
         };
         
-        Token() : type(TokenType::ERROR), text(""), byteOffset(0), builtinKind(BuiltinKind::Void) {}
+        Token() : type(TokenType::ERROR), text(""), byteOffset(0), line(0), col(0), builtinKind(BuiltinKind::Void) {}
     };
 }

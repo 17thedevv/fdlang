@@ -110,6 +110,7 @@ struct Symbol {
     bool           isExported = false;
     SymbolID       aliasTo = kInvalidSymbolID;
     std::string    mangledName;
+    uint16_t       declaredDepth = 0; // The function depth where this symbol was declared (used for closure capture analysis)
 };
 
 // =============================================================================

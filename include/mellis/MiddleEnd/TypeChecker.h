@@ -35,9 +35,11 @@ public:
     class MethodResolver {
         std::unordered_map<const Type*, std::unordered_map<std::string, MethodInfo>> implMap;
     public:
-        void addMethod(const Type* receiverType, const std::string& name, SymbolID methodId, const FunctionType* type, TypeContext& ctx);
+        void addMethod(const Type* receiverType, const std::string& name, SymbolID methodId, const FunctionType* type, TypeContext& ctx, const Type* selfTypeOverride = nullptr);
         bool probe(const Type* receiverType, const std::string& name, MethodInfo& outMethod);
     };
+
+    MethodResolver& getMethodResolver() { return methodResolver_; }
 
 private:
     SymbolTable& table_;

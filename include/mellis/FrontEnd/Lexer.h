@@ -9,7 +9,11 @@ private:
     std::string_view source; 
     uint32_t position;       
 
-    // --- Các hàm công cụ thao tác con trỏ ---
+    // ── Line/column tracking ───────────────────────────────────────────────────
+    uint32_t line_      = 1; // vị trí hiện tại (sau khi advance)
+    uint32_t col_       = 1;
+    uint32_t startLine_ = 1; // vị trí bắt đầu của token đang lex
+    uint32_t startCol_  = 1;
     char peek() const;
     char peekNext() const;
     char peekNextNext() const;

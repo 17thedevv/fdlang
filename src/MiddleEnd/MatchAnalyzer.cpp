@@ -121,7 +121,9 @@ void MatchAnalyzer::visit(MethodCallExpr& node) {
 }
 void MatchAnalyzer::visit(IndexExpr& node) { node.base->accept(*this); node.index->accept(*this); }
 void MatchAnalyzer::visit(MemberExpr& node) { node.object->accept(*this); }
+void MatchAnalyzer::visit(TupleIndexExpr& node) { node.object->accept(*this); }
 void MatchAnalyzer::visit(CastExpr& node) { node.expr->accept(*this); }
+void MatchAnalyzer::visit(UnsizeCastExpr& node) { node.expr->accept(*this); }
 void MatchAnalyzer::visit(ArrayLiteralExpr& node) { for (auto& e : node.elements) e->accept(*this); }
 void MatchAnalyzer::visit(TupleLiteralExpr& node) { for (auto& e : node.elements) e->accept(*this); }
 void MatchAnalyzer::visit(StructInitExpr& node) { for (auto& f : node.fields) f.value->accept(*this); }

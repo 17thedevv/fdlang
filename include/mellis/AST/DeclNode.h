@@ -73,6 +73,7 @@ public:
     bool isAsync    = false;
     bool isComptime = false;
     bool isVariadic = false;
+    bool isUnsafe   = false;
     void accept(ASTVisitor& v) override;
     ASTNode* cloneImpl() const override;
 };

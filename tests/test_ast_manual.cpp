@@ -111,7 +111,9 @@ public:
     void visit(MethodCallExpr&) override {}
     void visit(IndexExpr&) override {}
     void visit(MemberExpr&) override {}
+    void visit(TupleIndexExpr&) override {}
     void visit(CastExpr&) override {}
+    void visit(UnsizeCastExpr&) override {}
     void visit(ArrayLiteralExpr&) override {}
     void visit(TupleLiteralExpr&) override {}
     void visit(StructInitExpr&) override {}

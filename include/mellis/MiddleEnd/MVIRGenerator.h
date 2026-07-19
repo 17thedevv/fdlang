@@ -54,7 +54,9 @@ public:
     void visit(MethodCallExpr& node) override;
     void visit(IndexExpr& node) override;
     void visit(MemberExpr& node) override;
+    void visit(TupleIndexExpr& node) override;
     void visit(CastExpr& node) override;
+    void visit(UnsizeCastExpr& node) override;
     void visit(ArrayLiteralExpr& node) override;
     void visit(TupleLiteralExpr& node) override;
     void visit(StructInitExpr& node) override;

@@ -118,6 +118,7 @@ public:
     std::vector<const Type*>               inferredGenericArgs;
     std::vector<CallArgNode>               args;
     SymbolID resolvedFn = kInvalidSymbolID;
+    bool isClosureCall = false; // Set by TypeChecker if calling a closure struct
     void accept(ASTVisitor& v) override;
     ASTNode* cloneImpl() const override;
 };
@@ -152,12 +153,27 @@ public:
     ASTNode* cloneImpl() const override;
 };
 
+class TupleIndexExpr : public ExprNode {
+public:
+    std::unique_ptr<ExprNode> object;
+    uint32_t                  index; // t.0 → 0, t.1 → 1
+    void accept(ASTVisitor& v) override;
+};
+
 class CastExpr : public ExprNode {
 public:
     std::unique_ptr<ExprNode> expr;
     std::unique_ptr<TypeNode> targetType;
     void accept(ASTVisitor& v) override;
     ASTNode* cloneImpl() const override;
+};
+
+// Inserted by TypeChecker for `&T -> &dyn Trait` coercion
+class UnsizeCastExpr : public ExprNode {
+public:
+    std::unique_ptr<ExprNode> expr;
+    const Type*               targetTypePtr = nullptr; // Since it's inserted in MiddleEnd
+    void accept(ASTVisitor& v) override;
 };
 
 class ArrayLiteralExpr : public ExprNode {
@@ -209,6 +225,9 @@ public:
     std::vector<std::unique_ptr<ParamDeclNode>> params;
     std::unique_ptr<TypeNode>                   returnType;
     std::unique_ptr<StmtNode>                   body;
+    std::vector<SymbolID>                       capturedSymbols;
+    SymbolID                                    generatedStructId = kInvalidSymbolID;
+    SymbolID                                    generatedFuncId = kInvalidSymbolID;
     void accept(ASTVisitor& v) override;
     ASTNode* cloneImpl() const override;
 };

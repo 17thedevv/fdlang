@@ -130,6 +130,15 @@ std::string VariantInst::toString() const {
     }
     return res;
 }
+std::string MakeTraitObjectInst::toString() const {
+    std::string res = dest.toString() + " = make_trait_object " + mvir::toString(value) + " from " + formatType(concreteType) + " to " + formatType(targetType) + " vtable: [";
+    for (size_t i = 0; i < vtableMethods.size(); ++i) {
+        res += std::to_string(vtableMethods[i]);
+        if (i + 1 < vtableMethods.size()) res += ", ";
+    }
+    res += "]";
+    return res;
+}
 
 std::string CallInst::toString() const {
     std::string res;
@@ -145,6 +154,26 @@ std::string CallInst::toString() const {
     }
     res += ")";
     return res;
+}
+
+std::string VirtualCallInst::toString() const {
+    std::string res;
+    if (dest) {
+        res += dest->toString() + " = ";
+    }
+    res += "vcall " + mvir::toString(receiver) + " [" + std::to_string(methodIndex) + "] (";
+    for (size_t i = 0; i < args.size(); ++i) {
+        res += mvir::toString(args[i]);
+        if (i < args.size() - 1) {
+            res += ", ";
+        }
+    }
+    res += ")";
+    return res;
+}
+
+std::string AwaitInst::toString() const {
+    return dest.toString() + " = await " + mvir::toString(futureVal);
 }
 
 // =============================================================================
