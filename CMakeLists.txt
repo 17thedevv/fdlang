@@ -79,6 +79,7 @@ target_link_libraries(mellis PRIVATE ${LLVM_LIBS})
 
 # Runtime Library
 add_library(mellis_rt STATIC src/Runtime/runtime.c)
+set_property(TARGET mellis_rt PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
 # ==========================================
 # PHẦN 3: KIỂM THỬ (TESTING)

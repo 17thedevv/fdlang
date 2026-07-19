@@ -28,11 +28,18 @@ fn display_item@<T: Printable>(item: T) {
     item.display(); 
 }
 
+extern fn scanf(format: str, ...) -> int_32;
+
 fn main() -> int_32 {
-    dec p1 = Point { x: 10, y: 20 };
-    
-    // Gọi hàm Generic
-    display_item(p1); 
-    
-    return 0;
+    dec x: int_32;
+    printf("Please enter a number: ");
+    dec r1 = scanf("%d", &x);
+    if r1 == 1 {
+        dec pt: Point;
+        pt.x = x;
+        pt.y = 20;
+        display_item@<Point>(pt);
+        return x;
+    }
+    return r1;
 }

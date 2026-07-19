@@ -544,7 +544,14 @@ bool TypeChecker::check(ASTNode* root) {
             if (node.left->inferredType && node.right->inferredType) {
                 constraints.push_back({ConstraintKind::Equality, node.left->inferredType, node.right->inferredType, "", node.loc});
             }
-            node.inferredType = node.left->inferredType ? node.left->inferredType : ctx.getUnknown();
+            if (node.op == BinaryOp::Eq || node.op == BinaryOp::Ne || 
+                node.op == BinaryOp::Lt || node.op == BinaryOp::Le || 
+                node.op == BinaryOp::Gt || node.op == BinaryOp::Ge ||
+                node.op == BinaryOp::LogicAnd || node.op == BinaryOp::LogicOr) {
+                node.inferredType = ctx.getPrimitive(BuiltinKind::Bool);
+            } else {
+                node.inferredType = node.left->inferredType ? node.left->inferredType : ctx.getUnknown();
+            }
         }
         void visit(UnaryExpr& node) override {
             node.operand->accept(*this);

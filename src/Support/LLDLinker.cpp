@@ -36,10 +36,12 @@ bool LLDLinker::link(const std::string& objFile,
 
     // Default library linkage for Windows (libcmt provides C runtime)
     command += " /DEFAULTLIB:libcmt";
+    command += " /DEFAULTLIB:libucrt";
+    command += " /DEFAULTLIB:legacy_stdio_definitions";
 
     if (!verbose_) {
-        // Suppress lld-link output
-        command += " > NUL 2>&1";
+        std::cout << "Running command: " << command << "\n";
+        std::cout.flush();
     } else {
         std::cout << "Running command: " << command << "\n";
         std::cout.flush();

@@ -253,6 +253,17 @@ void LLVMIRGenerator::emitInstruction(const mvir::Instruction* inst) {
         llvm::Value* res = builder_.CreateBitCast(val, mapType(castinst->targetType), castinst->dest.name.substr(1));
         localValues_[castinst->dest.name] = res;
     }
+    else if (auto* borrow = dynamic_cast<const mvir::BorrowInst*>(inst)) {
+        llvm::Value* baseVal = mapOperand(borrow->base);
+        localValues_[borrow->dest.name] = baseVal;
+        
+        if (std::holds_alternative<mvir::LocalId>(borrow->base)) {
+            std::string baseName = std::get<mvir::LocalId>(borrow->base).name;
+            if (pointerTypes_.count(baseName)) {
+                pointerTypes_[borrow->dest.name] = pointerTypes_[baseName];
+            }
+        }
+    }
     else if (auto* alu = dynamic_cast<const mvir::AluInst*>(inst)) {
         llvm::Value* left = mapOperand(alu->left);
         llvm::Value* right = mapOperand(alu->right);
