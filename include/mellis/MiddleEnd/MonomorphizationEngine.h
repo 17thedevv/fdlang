@@ -41,6 +41,9 @@ public:
         SourceLocation loc
     );
 
+    /// Registers a generic implementation block for later instantiation
+    void registerGenericImpl(SymbolID targetStructId, const ImplDeclNode* implNode);
+
     /// Extracts the specialized ASTs generated so far.
     std::vector<std::unique_ptr<DeclNode>> takeSpecializedASTs() {
         return std::move(specializedASTs);
@@ -64,6 +67,9 @@ private:
 
     // Stores the specialized ASTs (the Engine owns them, or they can be injected into the ProgramNode)
     std::vector<std::unique_ptr<DeclNode>> specializedASTs;
+
+    // Maps a generic Struct/Enum's SymbolID to its generic Impl blocks
+    std::unordered_map<SymbolID, std::vector<const ImplDeclNode*>> genericImpls;
 };
 
 } // namespace fl

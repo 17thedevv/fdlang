@@ -1,0 +1,31 @@
+#pragma once
+#include <string>
+#include <memory>
+#include "mellis/Support/Diagnostic.h"
+#include "mellis/Core/SourceManager.h"
+#include "mellis/MiddleEnd/SymbolTable.h"
+#include "mellis/MiddleEnd/TypeChecker.h"
+
+namespace fl {
+
+class ProgramNode;
+
+class CompilerSession {
+public:
+    CompilerSession();
+    ~CompilerSession();
+
+    /// Biên dịch file đầu vào thành Executable.
+    /// Trả về true nếu thành công, false nếu có lỗi.
+    bool compile(const std::string& filepath, bool verbose = false);
+
+    DiagnosticEngine& getDiagnostics() { return diag_; }
+
+private:
+    DiagnosticEngine diag_;
+    SourceManager sourceManager_;
+    SymbolTable symbolTable_;
+    TypeContext typeContext_;
+};
+
+} // namespace fl

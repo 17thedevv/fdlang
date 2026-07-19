@@ -1,0 +1,172 @@
+#include "mellis/Core/CompilerSession.h"
+#include <iostream>
+#include <cassert>
+#include "mellis/Core/SourceLocation.h"
+#include "mellis/FrontEnd/Lexer.h"
+#include "mellis/FrontEnd/Parser.h"
+#include "mellis/MiddleEnd/Resolver.h"
+#include "mellis/MiddleEnd/MatchAnalyzer.h"
+#include "mellis/MiddleEnd/MVIRGenerator.h"
+#include "mellis/MiddleEnd/MonomorphizationEngine.h"
+#include "mellis/MiddleEnd/BorrowChecker.h"
+#include "mellis/BackEnd/LLVMIRGenerator.h"
+#include "mellis/BackEnd/ExecutableGenerator.h"
+#include "mellis/Support/LLDLinker.h"
+#include "mellis/AST/ProgramNode.h"
+
+namespace fl {
+
+CompilerSession::CompilerSession() : sourceManager_(diag_) {}
+CompilerSession::~CompilerSession() = default;
+
+bool CompilerSession::compile(const std::string& filepath, bool verbose) {
+    FileID mainFileId = sourceManager_.loadFile(filepath);
+    if (mainFileId == SourceManager::kInvalidFileID) {
+        diag_.flush();
+        return false;
+    }
+
+    if (verbose) {
+        std::cout << "Compiling: " << filepath << std::endl;
+        std::cout << "-----------------------------------" << std::endl;
+    }
+
+    // ── Phase 1 & 2: Lexer and Parser ─────────────────────────────────────────
+    if (verbose) std::cout << "[1] Phan tich cu phap (Parser)..." << std::endl;
+    std::string_view sourceCode = sourceManager_.getSource(mainFileId);
+    Lexer lexer(sourceCode);
+    Parser parser(lexer, diag_, &sourceManager_, mainFileId);
+    auto ast = parser.parse();
+
+    if (diag_.errorCount() > 0 || !ast) {
+        diag_.error(SourceLocation::invalid(), "Parsing that bai.");
+        diag_.flush();
+        return false;
+    }
+    if (verbose) {
+        std::cout << "[2] Parse thanh cong! ("
+                  << ast->items.size() << " cau lenh top-level)" << std::endl;
+    }
+
+    // ── Phase 3: Resolver ─────────────────────────────────────────────────────
+    if (verbose) std::cout << "[3] Giai quyet ten (Resolver)..." << std::endl;
+    Resolver resolver(symbolTable_, diag_);
+    bool resolveOk = resolver.resolve(ast.get());
+
+    if (!resolveOk) {
+        diag_.error(SourceLocation::invalid(), "Resolver that bai, nhung tiep tuc de test MVIR...");
+        diag_.flush();
+        // return false;
+    }
+
+    if (verbose) std::cout << "[4] Resolver thanh cong!" << std::endl;
+
+    // ── Phase 4: TypeChecker ──────────────────────────────────────────────────
+    if (verbose) std::cout << "[5] Kiem tra kieu du lieu (TypeChecker)..." << std::endl;
+    TypeChecker typeChecker(symbolTable_, diag_, typeContext_);
+    MonomorphizationEngine monoEngine(symbolTable_, resolver, typeChecker, diag_);
+    typeChecker.setMonomorphizationEngine(&monoEngine);
+    bool tcOk = typeChecker.check(ast.get());
+
+    if (!tcOk) {
+        diag_.error(SourceLocation::invalid(), "TypeChecker that bai, nhung tiep tuc de test MVIR...");
+        diag_.flush();
+        // return false;
+    }
+    if (verbose) std::cout << "[6] Type Checker thanh cong!" << std::endl;
+
+    auto* prog = dynamic_cast<ProgramNode*>(ast.get());
+    assert(prog);
+
+    // -- Phase 4.5: Inject Specialized ASTs --
+    if (verbose) std::cout << "[6.05] Tiem cac ham/struct/enum chuyen biet hoa vao AST..." << std::endl;
+    while (true) {
+        auto specializedASTs = monoEngine.takeSpecializedASTs();
+        if (specializedASTs.empty()) break;
+        for (auto& ast : specializedASTs) {
+            prog->items.push_back(std::move(ast));
+        }
+    }
+
+    // ── Phase 5: Match Analyzer ──────────────────────────────────────────────
+    if (verbose) std::cout << "[6.1] Phan tich Pattern Matching (MatchAnalyzer)..." << std::endl;
+    MatchAnalyzer matchAnalyzer(symbolTable_, diag_);
+    bool matchOk = matchAnalyzer.analyze(ast.get());
+    if (!matchOk) {
+        diag_.error(SourceLocation::invalid(), "MatchAnalyzer that bai, nhung tiep tuc de test MVIR...");
+        diag_.flush();
+        // return false;
+    }
+    if (verbose) std::cout << "[6.2] MatchAnalyzer thanh cong!" << std::endl;
+
+    // ── Phase 6: MVIR Generation ──────────────────────────────────────────────
+    if (verbose) std::cout << "[7] Sinh MVIR (MVIRGenerator)..." << std::endl;
+    MVIRGenerator mvirGen(symbolTable_, typeChecker);
+    auto mvirModule = mvirGen.generate(*prog);
+    if (!mvirModule) {
+        diag_.error(SourceLocation::invalid(), "Khong the sinh MVIR.");
+        diag_.flush();
+        return false;
+    }
+    if (verbose) {
+        std::cout << "[8] Sinh MVIR thanh cong!\n";
+        std::cout << "\n=== MVIR ===\n";
+        std::cout << mvirModule->toString() << "\n";
+    }
+
+    // ── Phase 7: Borrow Checker ──────────────────────────────────────────────
+    if (verbose) std::cout << "[8.1] Kiem tra muon tham chieu (BorrowChecker)..." << std::endl;
+    BorrowChecker borrowChecker(mvirModule.get(), diag_);
+    bool borrowOk = borrowChecker.check();
+    if (!borrowOk) {
+        diag_.error(SourceLocation::invalid(), "BorrowChecker that bai.");
+        diag_.flush();
+        return false;
+    }
+    if (verbose) std::cout << "[8.2] BorrowChecker thanh cong!" << std::endl;
+
+    // ── Phase 8: LLVM IR Generation ──────────────────────────────────────────
+    llvm::LLVMContext llvmContext;
+    llvm::Module llvmModule(filepath, llvmContext);
+    
+    LLVMIRGenerator llvmGen(llvmContext, llvmModule, symbolTable_);
+    bool llvmOk = llvmGen.generate(mvirModule.get());
+    llvmModule.print(llvm::errs(), nullptr);
+    
+    if (!llvmOk) {
+        diag_.error(SourceLocation::invalid(), "Loi trong qua trinh sinh LLVM IR.");
+        diag_.flush();
+        return false;
+    }
+    
+    if (verbose) {
+        std::cout << "\n=== LLVM IR ===\n";
+        llvmModule.print(llvm::outs(), nullptr);
+        llvm::outs().flush();
+    }
+
+    // ── Phase 9: LLD Linker / Executable Generation ──────────────────────────
+    if (verbose) std::cout << "[9] Tao thuc thi (ExecutableGenerator)..." << std::endl;
+    LLDLinker linker(diag_);
+    ExecutableGenerator exeGen(diag_, linker);
+    
+    std::string outName = filepath;
+    size_t lastDot = outName.find_last_of('.');
+    if (lastDot != std::string::npos) {
+        outName = outName.substr(0, lastDot);
+    }
+    outName += ".exe";
+
+    bool exeOk = exeGen.generateExecutable(&llvmModule, outName);
+    if (!exeOk) {
+        diag_.error(SourceLocation::invalid(), "Tao file thuc thi that bai.");
+        diag_.flush();
+        return false;
+    }
+
+    if (verbose) std::cout << "[10] Thanh cong! File dau ra: " << outName << std::endl;
+
+    return true;
+}
+
+} // namespace fl

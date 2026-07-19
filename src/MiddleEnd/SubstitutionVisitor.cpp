@@ -64,6 +64,13 @@ void SubstitutionVisitor::visit(StructFieldNode& n) {
     n.type = substituteType(std::move(n.type));
 }
 
+void SubstitutionVisitor::visit(ImplDeclNode& n) {
+    n.selfType = substituteType(std::move(n.selfType));
+    n.traitType = substituteType(std::move(n.traitType));
+    n.genericParams.clear(); // A specialized impl is no longer generic!
+    for (auto& m : n.methods) m->accept(*this);
+}
+
 // ==========================================
 // Stmt
 // ==========================================

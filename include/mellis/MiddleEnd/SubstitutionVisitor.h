@@ -31,7 +31,7 @@ public:
     void visit(EnumDeclNode&) override {}
     void visit(EnumVariantNode&) override {}
     void visit(TraitDeclNode&) override {}
-    void visit(ImplDeclNode&) override {}
+    void visit(ImplDeclNode&) override;
     void visit(ModDeclNode&) override {}
     void visit(UseDeclNode&) override {}
     void visit(ExternDeclNode&) override {}

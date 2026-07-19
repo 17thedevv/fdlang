@@ -1163,6 +1163,7 @@ std::unique_ptr<ExprNode> Parser::parsePostfix(bool allowStructLiteral) {
                 auto structInit = std::make_unique<StructInitExpr>();
                 structInit->loc = SourceLocation::fromOffset(current.byteOffset);
                 structInit->path = idExpr->segments;
+                structInit->genericArgs = std::move(idExpr->genericArgs);
                 
                 consume(TokenType::L_BRACE, "");
                 while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {

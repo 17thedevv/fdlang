@@ -38,7 +38,6 @@ TypeChecker::TypeChecker(SymbolTable& table, DiagnosticEngine& diag, TypeContext
     : table_(table), diag_(diag), ctx_(ctx), monoEngine_(monoEngine) {}
 
 void TypeChecker::MethodResolver::addMethod(const Type* receiverType, const std::string& name, SymbolID methodId, const FunctionType* type, TypeContext& ctx) {
-    printf("[DEBUG MethodResolver::addMethod] receiverType=%p (%s) method=%s methodId=%u\n", (void*)receiverType, receiverType->toString().c_str(), name.c_str(), methodId);
     std::vector<const Type*> newParamTypes;
     for (auto* pt : type->paramTypes) {
         if (auto* gp = dynamic_cast<const GenericParamType*>(pt)) {
@@ -58,17 +57,14 @@ void TypeChecker::MethodResolver::addMethod(const Type* receiverType, const std:
 }
 
 bool TypeChecker::MethodResolver::probe(const Type* receiverType, const std::string& name, MethodInfo& outMethod) {
-    printf("[DEBUG MethodResolver::probe] receiverType=%p (%s) method=%s\n", (void*)receiverType, receiverType ? receiverType->toString().c_str() : "null", name.c_str());
     auto it = implMap.find(receiverType);
     if (it != implMap.end()) {
         auto methodIt = it->second.find(name);
         if (methodIt != it->second.end()) {
             outMethod = methodIt->second;
-            printf("[DEBUG MethodResolver::probe] FOUND! methodId=%u\n", outMethod.methodId);
             return true;
         }
     }
-    printf("[DEBUG MethodResolver::probe] NOT FOUND\n");
     return false;
 }
 
@@ -83,6 +79,7 @@ bool TypeChecker::check(ASTNode* root) {
         MethodResolver& methodResolver;
         std::unordered_map<const Type*, std::unordered_set<SymbolID>>& implementedTraits;
         const Type* evaluatedType = nullptr;
+          MonomorphizationEngine* monoEngine;
 
     public:
         const Type* evaluateTypeNode(TypeNode* node) {
@@ -92,8 +89,8 @@ bool TypeChecker::check(ASTNode* root) {
             return evaluatedType ? evaluatedType : ctx.getUnknown();
         }
 
-        TypePrePass(SymbolTable& table, TypeContext& ctx, std::vector<const Type*>& typeTable, MethodResolver& methodResolver, std::unordered_map<const Type*, std::unordered_set<SymbolID>>& implementedTraits)
-            : table(table), ctx(ctx), typeTable(typeTable), methodResolver(methodResolver), implementedTraits(implementedTraits) {}
+        TypePrePass(SymbolTable& table, TypeContext& ctx, std::vector<const Type*>& typeTable, MethodResolver& methodResolver, std::unordered_map<const Type*, std::unordered_set<SymbolID>>& implementedTraits, MonomorphizationEngine* monoEngine)
+              : table(table), ctx(ctx), typeTable(typeTable), methodResolver(methodResolver), implementedTraits(implementedTraits), monoEngine(monoEngine) {}
 
         void visit(ProgramNode& node) override { for (auto& item : node.items) item->accept(*this); }
         void visit(ModDeclNode& node) override { for (auto& d : node.decls) d->accept(*this); }
@@ -208,6 +205,12 @@ bool TypeChecker::check(ASTNode* root) {
             }
         }
         void visit(ImplDeclNode& node) override {
+            if (!node.genericParams.empty()) {
+                if (auto* nt = dynamic_cast<NamedTypeNode*>(node.selfType.get())) {
+                    if (monoEngine) monoEngine->registerGenericImpl(nt->symbolId, &node);
+                }
+                return;
+            }
             const Type* selfType = evaluateTypeNode(node.selfType.get());
             if (!selfType) return;
 
@@ -323,8 +326,46 @@ bool TypeChecker::check(ASTNode* root) {
                 for (auto& argNode : node.genericArgs) {
                     args.push_back(evaluateTypeNode(argNode.get()));
                 }
-                if (sym.kind == SymbolKind::Struct) evaluatedType = ctx.getStructType(node.symbolId, args);
-                else if (sym.kind == SymbolKind::Enum) evaluatedType = ctx.getEnumType(node.symbolId, args);
+                if (sym.kind == SymbolKind::Struct) {
+                    bool allConcrete = true;
+                    for (auto* a : args) {
+                        if (a->getKind() == TypeKind::InferenceVar || dynamic_cast<const GenericParamType*>(a)) {
+                            allConcrete = false; break;
+                        }
+                    }
+                    if (allConcrete && monoEngine && sym.decl) {
+                        auto* structDecl = static_cast<const StructDeclNode*>(sym.decl);
+                        if (!structDecl->genericParams.empty()) {
+                            SymbolID specId = monoEngine->requestStructSpecialization(structDecl, args, node.loc);
+                            if (specId != kInvalidSymbolID) {
+                                node.symbolId = specId;
+                                args.clear();
+                                node.genericArgs.clear();
+                            }
+                        }
+                    }
+                    evaluatedType = ctx.getStructType(node.symbolId, args);
+                }
+                else if (sym.kind == SymbolKind::Enum) {
+                    bool allConcrete = true;
+                    for (auto* a : args) {
+                        if (a->getKind() == TypeKind::InferenceVar || dynamic_cast<const GenericParamType*>(a)) {
+                            allConcrete = false; break;
+                        }
+                    }
+                    if (allConcrete && monoEngine && sym.decl) {
+                        auto* enumDecl = static_cast<const EnumDeclNode*>(sym.decl);
+                        if (!enumDecl->genericParams.empty()) {
+                            SymbolID specId = monoEngine->requestEnumSpecialization(enumDecl, args, node.loc);
+                            if (specId != kInvalidSymbolID) {
+                                node.symbolId = specId;
+                                args.clear();
+                                node.genericArgs.clear();
+                            }
+                        }
+                    }
+                    evaluatedType = ctx.getEnumType(node.symbolId, args);
+                }
                 else if (sym.kind == SymbolKind::GenericParam) {
                     evaluatedType = ctx.getGenericParamType(node.symbolId, sym.name.view());
                 } else {
@@ -479,15 +520,16 @@ bool TypeChecker::check(ASTNode* root) {
         MethodResolver& methodResolver;
         std::unordered_map<const Type*, std::unordered_set<SymbolID>>& implementedTraits;
         const Type* currentReturnType = nullptr;
+          MonomorphizationEngine* monoEngine;
 
         const Type* evaluateTypeNode(TypeNode* node) {
             if (!node) return nullptr;
-            TypePrePass pre(table, ctx, typeTable, methodResolver, implementedTraits);
+            TypePrePass pre(table, ctx, typeTable, methodResolver, implementedTraits, monoEngine);
             return pre.evaluateTypeNode(node);
         }
     public:
-        ConstraintGenerator(SymbolTable& table, DiagnosticEngine& diag, TypeContext& ctx, std::vector<const Type*>& typeTable, std::vector<Constraint>& constraints, MethodResolver& methodResolver, std::unordered_map<const Type*, std::unordered_set<SymbolID>>& implementedTraits)
-            : table(table), diag(diag), ctx(ctx), typeTable(typeTable), constraints(constraints), methodResolver(methodResolver), implementedTraits(implementedTraits) {}
+        ConstraintGenerator(SymbolTable& table, DiagnosticEngine& diag, TypeContext& ctx, std::vector<const Type*>& typeTable, std::vector<Constraint>& constraints, MethodResolver& methodResolver, std::unordered_map<const Type*, std::unordered_set<SymbolID>>& implementedTraits, MonomorphizationEngine* monoEngine)
+              : table(table), diag(diag), ctx(ctx), typeTable(typeTable), constraints(constraints), methodResolver(methodResolver), implementedTraits(implementedTraits), monoEngine(monoEngine) {}
 
         void visit(ProgramNode& node) override { for (auto& item : node.items) item->accept(*this); }
         void visit(ModDeclNode& node) override { for (auto& d : node.decls) d->accept(*this); }
@@ -511,9 +553,72 @@ bool TypeChecker::check(ASTNode* root) {
         void visit(ParamDeclNode& node) override {}
         void visit(StructInitExpr& node) override {
             const Type* structType = ctx.getUnknown();
-            if (node.structId != kInvalidSymbolID) structType = typeTable[node.structId];
+            if (node.structId != kInvalidSymbolID) {
+                const auto& sym = table.getSymbol(node.structId);
+                if (sym.kind == SymbolKind::Struct && sym.decl) {
+                    auto* structDecl = static_cast<const StructDeclNode*>(sym.decl);
+                    if (!structDecl->genericParams.empty()) {
+                        std::vector<const Type*> args;
+                        for (size_t i = 0; i < structDecl->genericParams.size(); ++i) {
+                            if (i < node.genericArgs.size()) {
+                                TypePrePass pre(table, ctx, typeTable, methodResolver, implementedTraits, monoEngine);
+                                args.push_back(pre.evaluateTypeNode(node.genericArgs[i].get()));
+                            } else {
+                                args.push_back(ctx.getInferenceVar(ctx.newVar()));
+                            }
+                        }
+                        bool allConcrete = true;
+                        for (auto* a : args) {
+                            if (a->getKind() == TypeKind::InferenceVar || dynamic_cast<const GenericParamType*>(a)) {
+                                allConcrete = false; break;
+                            }
+                        }
+                        if (allConcrete && monoEngine) {
+                            SymbolID specId = monoEngine->requestStructSpecialization(structDecl, args, node.loc);
+                            if (specId != kInvalidSymbolID) {
+                                node.structId = specId;
+                                args.clear();
+                                node.genericArgs.clear();
+                            }
+                        }
+                        structType = ctx.getStructType(node.structId, args);
+                    } else {
+                        structType = typeTable[node.structId];
+                    }
+                } else {
+                    structType = typeTable[node.structId];
+                }
+            }
             node.inferredType = structType;
-            for (auto& field : node.fields) field.value->accept(*this);
+            for (auto& field : node.fields) {
+                if (field.value) field.value->accept(*this);
+            }
+            
+            if (auto* st = dynamic_cast<const StructType*>(structType)) {
+                if (node.structId != kInvalidSymbolID) {
+                    const auto& sym = table.getSymbol(node.structId);
+                    if (sym.kind == SymbolKind::Struct && sym.decl) {
+                        auto* structDecl = static_cast<const StructDeclNode*>(sym.decl);
+                        std::unordered_map<SymbolID, const Type*> subst;
+                        for (size_t i = 0; i < structDecl->genericParams.size(); ++i) {
+                            if (i < st->genericArgs.size()) {
+                                subst[structDecl->genericParams[i].symbolId] = st->genericArgs[i];
+                            }
+                        }
+                        
+                        for (auto& field : node.fields) {
+                            if (!field.value) continue;
+                            auto it = st->fieldIndices.find(std::string(field.name));
+                            if (it != st->fieldIndices.end()) {
+                                SymbolID fId = structDecl->fields[it->second]->symbolId;
+                                const Type* fTy = typeTable[fId];
+                                const Type* instTy = ctx.substitute(fTy, subst);
+                                constraints.push_back(Constraint(ConstraintKind::Equality, instTy, field.value->inferredType, "field type mismatch", node.loc));
+                            }
+                        }
+                    }
+                }
+            }
         }
         void visit(FunctionDeclNode& node) override {
             const Type* oldRet = currentReturnType;
@@ -529,7 +634,8 @@ bool TypeChecker::check(ASTNode* root) {
         void visit(EnumVariantNode& node) override {}
         void visit(TraitDeclNode& node) override {}
         void visit(ImplDeclNode& node) override {
-            for (auto& method : node.methods) method->accept(*this);
+            if (!node.genericParams.empty()) return;
+              for (auto& method : node.methods) method->accept(*this);
         }
         void visit(TypeAliasDeclNode& node) override {}
         void visit(UseDeclNode& node) override {}
@@ -616,7 +722,7 @@ bool TypeChecker::check(ASTNode* root) {
                             for (size_t i = 0; i < enumDecl->genericParams.size(); ++i) {
                                 const Type* argTy = nullptr;
                                 if (i < node.genericArgs.size()) {
-                                    TypePrePass pre(table, ctx, typeTable, methodResolver, implementedTraits);
+                                    TypePrePass pre(table, ctx, typeTable, methodResolver, implementedTraits, monoEngine);
                                     argTy = pre.evaluateTypeNode(node.genericArgs[i].get());
                                 } else {
                                     argTy = ctx.getInferenceVar(ctx.newVar());
@@ -976,6 +1082,8 @@ bool TypeChecker::check(ASTNode* root) {
                         if (unify(c.expected, c.actual, c.loc)) changed = true;
                     } else if (c.kind == ConstraintKind::Field) {
                         const Type* objType = ctx.unificationTable.deepResolve(c.expected, ctx);
+                        if (auto* ptr = dynamic_cast<const PointerType*>(objType)) objType = ptr->pointee;
+                        if (auto* ref = dynamic_cast<const ReferenceType*>(objType)) objType = ref->pointee;
                         if (auto* st = dynamic_cast<const StructType*>(objType)) {
                             const auto& sym = table.getSymbol(st->structSymbolId);
                             if (sym.kind == SymbolKind::Struct && sym.decl) {
@@ -983,7 +1091,15 @@ bool TypeChecker::check(ASTNode* root) {
                                 for (auto& field : structDecl->fields) {
                                     if (field->name == c.name) {
                                         if (field->symbolId != kInvalidSymbolID) {
-                                            if (unify(c.actual, typeTable[field->symbolId], c.loc)) changed = true;
+                                            const Type* fTy = typeTable[field->symbolId];
+                                            std::unordered_map<SymbolID, const Type*> subst;
+                                            for (size_t j = 0; j < structDecl->genericParams.size(); ++j) {
+                                                if (j < st->genericArgs.size()) {
+                                                    subst[structDecl->genericParams[j].symbolId] = st->genericArgs[j];
+                                                }
+                                            }
+                                            fTy = ctx.substitute(fTy, subst);
+                                            if (unify(c.actual, fTy, c.loc)) changed = true;
                                         }
                                     }
                                 }
@@ -1137,7 +1253,8 @@ bool TypeChecker::check(ASTNode* root) {
         void visit(EnumVariantNode& node) override {}
         void visit(TraitDeclNode& node) override {}
         void visit(ImplDeclNode& node) override {
-            for (auto& method : node.methods) method->accept(*this);
+            if (!node.genericParams.empty()) return;
+              for (auto& method : node.methods) method->accept(*this);
         }
         void visit(TypeAliasDeclNode& node) override {}
         void visit(UseDeclNode& node) override {}
@@ -1231,7 +1348,12 @@ bool TypeChecker::check(ASTNode* root) {
         void visit(CastExpr& node) override {}
         void visit(ArrayLiteralExpr& node) override {}
         void visit(TupleLiteralExpr& node) override {}
-        void visit(StructInitExpr& node) override {}
+        void visit(StructInitExpr& node) override {
+            resolve(node.inferredType, node.loc);
+            for (auto& field : node.fields) {
+                if (field.value) field.value->accept(*this);
+            }
+        }
           void visit(MatchExpr& node) override {
               node.subject->accept(*this);
               PatternResolverVisitor patRes(*this);
@@ -1247,11 +1369,11 @@ bool TypeChecker::check(ASTNode* root) {
         void visit(AlignofExpr& node) override {}
     };
 
-    TypePrePass pre(table_, ctx_, typeTable_, methodResolver_, implementedTraits_);
+    TypePrePass pre(table_, ctx_, typeTable_, methodResolver_, implementedTraits_, monoEngine_);
     root->accept(pre);
 
     std::vector<Constraint> constraints;
-    ConstraintGenerator gen(table_, diag_, ctx_, typeTable_, constraints, methodResolver_, implementedTraits_);
+    ConstraintGenerator gen(table_, diag_, ctx_, typeTable_, constraints, methodResolver_, implementedTraits_, monoEngine_);
     root->accept(gen);
 
     UnificationEngine solver(table_, diag_, ctx_, typeTable_, methodResolver_);

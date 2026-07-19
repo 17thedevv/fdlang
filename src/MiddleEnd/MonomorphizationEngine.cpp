@@ -191,6 +191,28 @@ SymbolID MonomorphizationEngine::requestStructSpecialization(
     inProgress.erase(stableMangledName);
     specializedASTs.push_back(std::move(specializedAST));
 
+    // Specialize associated Impl blocks
+    auto implIt = genericImpls.find(genericTemplate->symbolId);
+    if (implIt != genericImpls.end()) {
+        for (const auto* implNode : implIt->second) {
+            auto specializedImpl = implNode->cloneAs<ImplDeclNode>();
+            specializedImpl->genericParams.clear(); // Now concrete!
+            
+            std::unordered_map<std::string, std::unique_ptr<TypeNode>> implSubs;
+            for (size_t i = 0; i < implNode->genericParams.size() && i < genericArgs.size(); ++i) {
+                implSubs[std::string(implNode->genericParams[i].name)] = typeToAST(genericArgs[i], symTable);
+            }
+            
+            SubstitutionVisitor implVisitor(std::move(implSubs));
+            implVisitor.substitute(*specializedImpl);
+            
+            resolver.resolve(specializedImpl.get());
+            typeChecker.check(specializedImpl.get());
+            
+            specializedASTs.push_back(std::move(specializedImpl));
+        }
+    }
+
     currentDepth--;
     return newId;
 }
@@ -248,4 +270,10 @@ SymbolID MonomorphizationEngine::requestEnumSpecialization(
     return newId;
 }
 
+
+void MonomorphizationEngine::registerGenericImpl(SymbolID targetStructId, const ImplDeclNode* implNode) {
+    if (targetStructId != kInvalidSymbolID) {
+        genericImpls[targetStructId].push_back(implNode);
+    }
+}
 } // namespace fl
