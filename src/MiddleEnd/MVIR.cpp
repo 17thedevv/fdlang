@@ -53,13 +53,6 @@ std::string FieldInst::toString() const {
     return dest.toString() + " = field " + formatType(type) + " " + mvir::toString(base) + ", " + std::to_string(index);
 }
 
-std::string BeginScopeInst::toString() const {
-    return "begin_scope";
-}
-
-std::string EndScopeInst::toString() const {
-    return "end_scope";
-}
 
 std::string BorrowInst::toString() const {
     return dest.toString() + " = borrow " + (isMutable ? "mut" : "shared") + " " + mvir::toString(base);

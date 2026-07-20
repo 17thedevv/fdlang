@@ -123,14 +123,12 @@ void MVIRGenerator::visit(AssignExpr& node) {
 }
 
 void MVIRGenerator::visit(BlockStmtNode& node) {
-    currentBlock_->instructions.push_back(std::make_unique<mvir::BeginScopeInst>());
     for (auto& stmt : node.body) {
         // Dead-code gate: nếu block đã có terminator (return/break/continue),
         // bỏ qua tất cả statement phía sau để tránh LLVM Builder crash.
         if (currentBlock_->terminator != nullptr) break;
         stmt->accept(*this);
     }
-    currentBlock_->instructions.push_back(std::make_unique<mvir::EndScopeInst>());
 }
 
 void MVIRGenerator::visit(IfStmtNode& node) {

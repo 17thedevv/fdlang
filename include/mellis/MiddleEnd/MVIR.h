@@ -129,13 +129,7 @@ struct FieldInst : public Instruction {
     std::string toString() const override;
 };
 
-struct BeginScopeInst : public Instruction {
-    std::string toString() const override;
-};
 
-struct EndScopeInst : public Instruction {
-    std::string toString() const override;
-};
 
 struct BorrowInst : public Instruction {
     LocalId dest;
