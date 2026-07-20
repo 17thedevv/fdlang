@@ -43,7 +43,7 @@ set(MIDDLEEND_SRC
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/CFG.cpp
     src/MiddleEnd/MatchAnalyzer.cpp
-    src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
     src/MiddleEnd/MVIR.cpp
     src/MiddleEnd/MVIRGenerator.cpp
     src/MiddleEnd/MVIROptimizer.cpp
@@ -193,7 +193,7 @@ add_executable(test_mvir_generator
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
     src/Support/Diagnostic.cpp
@@ -213,8 +213,8 @@ add_executable(test_borrow_checker
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
-    src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
+    src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
     src/Support/Diagnostic.cpp
@@ -234,7 +234,7 @@ add_executable(test_llvmir_generator
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
     src/BackEnd/LLVMIRGenerator.cpp
@@ -256,7 +256,7 @@ add_executable(test_executable_generator
     src/MiddleEnd/Resolver.cpp
     src/MiddleEnd/TypeChecker.cpp
     src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp
+    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
     src/MiddleEnd/MonomorphizationEngine.cpp
     src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
     src/BackEnd/LLVMIRGenerator.cpp

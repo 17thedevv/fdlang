@@ -1,56 +1,10 @@
-
 #include "mellis/MiddleEnd/MVIROptimizer.h"
-#include <iostream>
-#include <unordered_set>
+#include "mellis/MiddleEnd/LivenessAnalyzer.h"
 #include <unordered_map>
+#include <unordered_set>
 #include <algorithm>
 
 namespace fl {
-
-// Helper to replace operands
-static void replaceOperand(mvir::Operand& op, const std::unordered_map<std::string, mvir::Operand>& replacements) {
-    if (auto* loc = std::get_if<mvir::LocalId>(&op)) {
-        if (replacements.count(loc->name)) {
-            op = replacements.at(loc->name);
-        }
-    }
-}
-
-// Helper to replace operands in an instruction
-static void replaceOperandsInInst(mvir::Instruction& inst, const std::unordered_map<std::string, mvir::Operand>& replacements) {
-    if (auto* load = dynamic_cast<mvir::LoadInst*>(&inst)) replaceOperand(load->ptr, replacements);
-    else if (auto* store = dynamic_cast<mvir::StoreInst*>(&inst)) {
-        replaceOperand(store->value, replacements);
-        replaceOperand(store->ptr, replacements);
-    }
-    else if (auto* idx = dynamic_cast<mvir::IndexInst*>(&inst)) {
-        replaceOperand(idx->base, replacements);
-        replaceOperand(idx->index, replacements);
-    }
-    else if (auto* fld = dynamic_cast<mvir::FieldInst*>(&inst)) replaceOperand(fld->base, replacements);
-    else if (auto* bor = dynamic_cast<mvir::BorrowInst*>(&inst)) replaceOperand(bor->base, replacements);
-    else if (auto* cst = dynamic_cast<mvir::CastInst*>(&inst)) replaceOperand(cst->value, replacements);
-    else if (auto* alu = dynamic_cast<mvir::AluInst*>(&inst)) {
-        replaceOperand(alu->left, replacements);
-        replaceOperand(alu->right, replacements);
-    }
-    else if (auto* una = dynamic_cast<mvir::UnaryInst*>(&inst)) replaceOperand(una->operand, replacements);
-    else if (auto* ext = dynamic_cast<mvir::ExtractInst*>(&inst)) replaceOperand(ext->base, replacements);
-    else if (auto* tag = dynamic_cast<mvir::TagInst*>(&inst)) replaceOperand(tag->base, replacements);
-    else if (auto* var = dynamic_cast<mvir::VariantInst*>(&inst)) {
-        for (auto& a : var->args) replaceOperand(a, replacements);
-    }
-    else if (auto* mto = dynamic_cast<mvir::MakeTraitObjectInst*>(&inst)) replaceOperand(mto->value, replacements);
-    else if (auto* call = dynamic_cast<mvir::CallInst*>(&inst)) {
-        replaceOperand(call->func, replacements);
-        for (auto& a : call->args) replaceOperand(a, replacements);
-    }
-    else if (auto* vcall = dynamic_cast<mvir::VirtualCallInst*>(&inst)) {
-        replaceOperand(vcall->receiver, replacements);
-        for (auto& a : vcall->args) replaceOperand(a, replacements);
-    }
-    else if (auto* aw = dynamic_cast<mvir::AwaitInst*>(&inst)) replaceOperand(aw->futureVal, replacements);
-}
 
 // ConstantFoldingPass
 bool ConstantFoldingPass::runOnFunction(mvir::Function& func) {
@@ -59,61 +13,53 @@ bool ConstantFoldingPass::runOnFunction(mvir::Function& func) {
     
     for (auto& block : func.blocks) {
         for (auto it = block->instructions.begin(); it != block->instructions.end(); ) {
-            replaceOperandsInInst(**it, replacements);
-            
-            bool instRemoved = false;
             if (auto* alu = dynamic_cast<mvir::AluInst*>(it->get())) {
-                auto* lNum = std::get_if<mvir::Number>(&alu->left);
-                auto* rNum = std::get_if<mvir::Number>(&alu->right);
-                if (lNum && rNum) {
-                    try {
-                        long long lVal = std::stoll(lNum->value);
-                        long long rVal = std::stoll(rNum->value);
-                        long long res = 0;
-                        bool isBool = false;
+                if (auto* l = std::get_if<mvir::Number>(&alu->left)) {
+                    if (auto* r = std::get_if<mvir::Number>(&alu->right)) {
+                        int lv = std::stoi(l->value);
+                        int rv = std::stoi(r->value);
+                        int res = 0;
                         switch (alu->op) {
-                            case mvir::AluOp::Add: res = lVal + rVal; break;
-                            case mvir::AluOp::Sub: res = lVal - rVal; break;
-                            case mvir::AluOp::Mul: res = lVal * rVal; break;
-                            case mvir::AluOp::Div: if (rVal != 0) res = lVal / rVal; break;
-                            case mvir::AluOp::Eq: res = (lVal == rVal); isBool = true; break;
-                            case mvir::AluOp::Ne: res = (lVal != rVal); isBool = true; break;
-                            case mvir::AluOp::Lt: res = (lVal < rVal); isBool = true; break;
-                            case mvir::AluOp::Le: res = (lVal <= rVal); isBool = true; break;
-                            case mvir::AluOp::Gt: res = (lVal > rVal); isBool = true; break;
-                            case mvir::AluOp::Ge: res = (lVal >= rVal); isBool = true; break;
+                            case mvir::AluOp::Add: res = lv + rv; break;
+                            case mvir::AluOp::Sub: res = lv - rv; break;
+                            case mvir::AluOp::Mul: res = lv * rv; break;
+                            case mvir::AluOp::Div: if (rv != 0) res = lv / rv; break;
+                            default: break; 
                         }
-                        if (isBool) {
-                            replacements[alu->dest.name] = mvir::Boolean{res != 0};
-                        } else {
-                            replacements[alu->dest.name] = mvir::Number{std::to_string(res)};
-                        }
+                        // We do not fold everything for MVP, but if we do:
+                        replacements[alu->dest.name] = mvir::Number{std::to_string(res)};
                         it = block->instructions.erase(it);
-                        instRemoved = true;
                         changed = true;
-                    } catch (...) {
-                        // ignore overflow
+                        continue;
                     }
                 }
-            } else if (auto* una = dynamic_cast<mvir::UnaryInst*>(it->get())) {
-                auto* valNum = std::get_if<mvir::Number>(&una->operand);
-                auto* valBool = std::get_if<mvir::Boolean>(&una->operand);
-                if (valNum && una->op == mvir::UnaryOp::Negate) {
-                    try {
-                        long long v = std::stoll(valNum->value);
-                        replacements[una->dest.name] = mvir::Number{std::to_string(-v)};
-                        it = block->instructions.erase(it);
-                        instRemoved = true;
-                        changed = true;
-                    } catch (...) {}
-                } else if (valBool && una->op == mvir::UnaryOp::Negate) { // assuming bool negation is negate instead of bitnot
-                    replacements[una->dest.name] = mvir::Boolean{!valBool->value};
-                    it = block->instructions.erase(it);
-                    instRemoved = true;
-                    changed = true;
-                }
             }
-            if (!instRemoved) ++it;
+            ++it;
+        }
+    }
+    
+    // Replace operands in remaining instructions
+    auto replaceOperand = [&](mvir::Operand& op, const std::unordered_map<std::string, mvir::Operand>& reps) {
+        if (auto* loc = std::get_if<mvir::LocalId>(&op)) {
+            auto rit = reps.find(loc->name);
+            if (rit != reps.end()) {
+                op = rit->second;
+            }
+        }
+    };
+    
+    for (auto& block : func.blocks) {
+        for (auto& inst : block->instructions) {
+            if (auto* store = dynamic_cast<mvir::StoreInst*>(inst.get())) {
+                replaceOperand(store->value, replacements);
+                replaceOperand(store->ptr, replacements);
+            } else if (auto* load = dynamic_cast<mvir::LoadInst*>(inst.get())) {
+                replaceOperand(load->ptr, replacements);
+            } else if (auto* alu = dynamic_cast<mvir::AluInst*>(inst.get())) {
+                replaceOperand(alu->left, replacements);
+                replaceOperand(alu->right, replacements);
+            }
+            // Add more replacements if needed for full MVP
         }
         
         if (auto* branch = dynamic_cast<mvir::BranchTerm*>(block->terminator.get())) {
@@ -188,73 +134,48 @@ bool UnreachableBlockEliminationPass::runOnFunction(mvir::Function& func) {
     return func.blocks.size() < oldSize;
 }
 
-// DeadCodeEliminationPass
+// DeadCodeEliminationPass (Dataflow Liveness Based)
 bool DeadCodeEliminationPass::runOnFunction(mvir::Function& func) {
     bool changed = false;
-    std::unordered_map<std::string, int> useCounts;
     
-    auto countUses = [&](const mvir::Operand& op) {
-        if (auto* loc = std::get_if<mvir::LocalId>(&op)) useCounts[loc->name]++;
-    };
+    // 1. Phn tch Liveness b?ng LivenessAnalyzer
+    LivenessInfo liveness = LivenessAnalyzer::computeLiveness(func);
     
-    for (auto& block : func.blocks) {
-        for (auto& inst : block->instructions) {
-            if (auto* load = dynamic_cast<mvir::LoadInst*>(inst.get())) countUses(load->ptr);
-            else if (auto* store = dynamic_cast<mvir::StoreInst*>(inst.get())) {
-                countUses(store->value); countUses(store->ptr);
-            }
-            else if (auto* idx = dynamic_cast<mvir::IndexInst*>(inst.get())) {
-                countUses(idx->base); countUses(idx->index);
-            }
-            else if (auto* fld = dynamic_cast<mvir::FieldInst*>(inst.get())) countUses(fld->base);
-            else if (auto* bor = dynamic_cast<mvir::BorrowInst*>(inst.get())) countUses(bor->base);
-            else if (auto* cst = dynamic_cast<mvir::CastInst*>(inst.get())) countUses(cst->value);
-            else if (auto* alu = dynamic_cast<mvir::AluInst*>(inst.get())) {
-                countUses(alu->left); countUses(alu->right);
-            }
-            else if (auto* una = dynamic_cast<mvir::UnaryInst*>(inst.get())) countUses(una->operand);
-            else if (auto* ext = dynamic_cast<mvir::ExtractInst*>(inst.get())) countUses(ext->base);
-            else if (auto* tag = dynamic_cast<mvir::TagInst*>(inst.get())) countUses(tag->base);
-            else if (auto* var = dynamic_cast<mvir::VariantInst*>(inst.get())) {
-                for (auto& a : var->args) countUses(a);
-            }
-            else if (auto* mto = dynamic_cast<mvir::MakeTraitObjectInst*>(inst.get())) countUses(mto->value);
-            else if (auto* call = dynamic_cast<mvir::CallInst*>(inst.get())) {
-                countUses(call->func);
-                for (auto& a : call->args) countUses(a);
-            }
-            else if (auto* vcall = dynamic_cast<mvir::VirtualCallInst*>(inst.get())) {
-                countUses(vcall->receiver);
-                for (auto& a : vcall->args) countUses(a);
-            }
-            else if (auto* aw = dynamic_cast<mvir::AwaitInst*>(inst.get())) countUses(aw->futureVal);
-        }
-        
-        if (auto* branch = dynamic_cast<mvir::BranchTerm*>(block->terminator.get())) {
-            countUses(branch->condition);
-        } else if (auto* ret = dynamic_cast<mvir::RetTerm*>(block->terminator.get())) {
-            if (ret->value) countUses(*ret->value);
-        } else if (auto* sw = dynamic_cast<mvir::SwitchTerm*>(block->terminator.get())) {
-            countUses(sw->condition);
-        }
-    }
-    
-    // Now remove unused instructions that have side-effect free destinations
+    // 2. Scan qua t?ng instruction \? tm Pure Instruction c?u ra (dest) khng cn s?ng \? di (LiveOut)
     for (auto& block : func.blocks) {
         for (auto it = block->instructions.begin(); it != block->instructions.end(); ) {
-            bool canRemove = false;
+            bool isPure = false;
             std::string destName = "";
             
-            if (auto* alu = dynamic_cast<mvir::AluInst*>(it->get())) destName = alu->dest.name;
-            else if (auto* una = dynamic_cast<mvir::UnaryInst*>(it->get())) destName = una->dest.name;
-            else if (auto* load = dynamic_cast<mvir::LoadInst*>(it->get())) destName = load->dest.name;
-            else if (auto* idx = dynamic_cast<mvir::IndexInst*>(it->get())) destName = idx->dest.name;
-            else if (auto* fld = dynamic_cast<mvir::FieldInst*>(it->get())) destName = fld->dest.name;
-            else if (auto* bor = dynamic_cast<mvir::BorrowInst*>(it->get())) destName = bor->dest.name;
-            else if (auto* cst = dynamic_cast<mvir::CastInst*>(it->get())) destName = cst->dest.name;
+            if (auto* alu = dynamic_cast<mvir::AluInst*>(it->get())) { isPure = true; destName = alu->dest.name; }
+            else if (auto* una = dynamic_cast<mvir::UnaryInst*>(it->get())) { isPure = true; destName = una->dest.name; }
+            else if (auto* load = dynamic_cast<mvir::LoadInst*>(it->get())) { isPure = true; destName = load->dest.name; }
+            else if (auto* idx = dynamic_cast<mvir::IndexInst*>(it->get())) { isPure = true; destName = idx->dest.name; }
+            else if (auto* fld = dynamic_cast<mvir::FieldInst*>(it->get())) { isPure = true; destName = fld->dest.name; }
+            else if (auto* bor = dynamic_cast<mvir::BorrowInst*>(it->get())) { isPure = true; destName = bor->dest.name; }
+            else if (auto* cst = dynamic_cast<mvir::CastInst*>(it->get())) { isPure = true; destName = cst->dest.name; }
+            else if (auto* loc = dynamic_cast<mvir::LocalInst*>(it->get())) { isPure = true; destName = loc->dest.name; }
+            else if (auto* ex = dynamic_cast<mvir::ExtractInst*>(it->get())) { isPure = true; destName = ex->dest.name; }
+            else if (auto* tag = dynamic_cast<mvir::TagInst*>(it->get())) { isPure = true; destName = tag->dest.name; }
+            else if (auto* var = dynamic_cast<mvir::VariantInst*>(it->get())) { isPure = true; destName = var->dest.name; }
+            else if (auto* sz = dynamic_cast<mvir::SizeofInst*>(it->get())) { isPure = true; destName = sz->dest.name; }
+            else if (auto* al = dynamic_cast<mvir::AlignofInst*>(it->get())) { isPure = true; destName = al->dest.name; }
+
+            // Ch : Tuy?t \?i KHNG match CallInst, VirtualCallInst v StoreInst vo \y (V\ chng Impure).
             
-            if (!destName.empty() && useCounts[destName] == 0) {
-                canRemove = true;
+            bool canRemove = false;
+            if (isPure && !destName.empty()) {
+                // H?i b?n \? Liveness
+                auto livIt = liveness.liveInstructions.find(destName);
+                if (livIt != liveness.liveInstructions.end()) {
+                    // N?u l?nh ny khng thu?c m?ng LiveOut c?a b?n thn n => Code dead!
+                    if (livIt->second.find(it->get()) == livIt->second.end()) {
+                        canRemove = true;
+                    }
+                } else {
+                    // C?ng c th? n khng bao gi? \?c use nn khng vo Liveness!
+                    canRemove = true; 
+                }
             }
             
             if (canRemove) {
@@ -281,7 +202,7 @@ bool MVIROptimizer::optimize(mvir::Module& module) {
     for (auto& func : module.functions) {
         bool funcChanged = true;
         int iter = 0;
-        while (funcChanged && iter < 10) { // Max iterations to prevent infinite loops
+        while (funcChanged && iter < 10) { 
             funcChanged = false;
             for (auto& pass : passes_) {
                 if (pass->runOnFunction(*func)) {

@@ -3,6 +3,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include "mellis/MiddleEnd/LivenessAnalyzer.h"
 #include "mellis/MiddleEnd/MVIR.h"
 #include "mellis/MiddleEnd/Place.h"
 #include "mellis/Support/Diagnostic.h"
@@ -15,11 +16,6 @@ struct Loan {
     bool isMutable;
     std::string referenceId; // Tên của biến giữ reference này (ví dụ: %1)
     SourceLocation loc;
-};
-
-struct LivenessInfo {
-    // Map từ Tên Biến (Reference) sang tập các Instruction IDs (hoặc pointers) mà biến đó còn sống
-    std::unordered_map<std::string, std::unordered_set<const mvir::Instruction*>> liveInstructions;
 };
 
 struct DataflowState {
@@ -41,8 +37,7 @@ public:
 private:
     void checkFunction(const mvir::Function& func);
     
-    // Pass 1: Liveness Analysis
-    LivenessInfo computeLiveness(const mvir::Function& func);
+    // Pass 1: Liveness Analysis is now done via LivenessAnalyzer
     
     // Pass 2: NLL Borrow Checking
     void checkDataflow(const mvir::Function& func, const mvir::BasicBlock& block, DataflowState state, const LivenessInfo& liveness, std::unordered_set<const mvir::BasicBlock*>& visited);
