@@ -112,7 +112,28 @@ struct TraitEntry {
 struct FunctionEntry {
     uint32_t nameStringID;
     uint32_t namespaceID;
-    uint32_t signatureTypeID;
+    uint32_t signatureTypeID;  // index into the SignatureTable
+    uint8_t  isVariadic;
+    uint8_t  paramCount;
+    uint16_t flags;            // reserved
+};
+
+// One parameter slot in a function signature.
+// Stored as a flat list; FunctionEntry.paramCount says how many follow.
+struct ExternalParamEntry {
+    uint32_t nameStringID;     // Parameter name (for named-arg call sites)
+    uint8_t  primitiveKind;    // If > 0: maps to BuiltinKind directly
+    uint8_t  typeKind;         // 0=primitive, 1=struct, 2=unknown/opaque
+    uint16_t reserved;
+    uint32_t structSymbolID;   // Valid only when typeKind == 1
+};
+
+// Return type encoding: same layout as ExternalParamEntry, no name.
+struct ExternalReturnEntry {
+    uint8_t  primitiveKind;
+    uint8_t  typeKind;
+    uint16_t reserved;
+    uint32_t structSymbolID;
 };
 
 struct ImplEntry {

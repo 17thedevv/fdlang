@@ -11,6 +11,7 @@
 #include "mellis/FrontEnd/MacroValidator.h"
 #include "mellis/FrontEnd/MacroExpander.h"
 #include "mellis/MLib/ModuleLoader.h"
+#include "mellis/MLib/MLibMetadataCache.h"
 #include "mellis/MiddleEnd/Resolver.h"
 #include "mellis/MiddleEnd/MatchAnalyzer.h"
 #include "mellis/MiddleEnd/MVIRGenerator.h"
@@ -109,6 +110,9 @@ bool CompilerSession::compile(const std::string& filepath, bool verbose, int opt
     TypeChecker typeChecker(symbolTable_, diag_, typeContext_);
     MonomorphizationEngine monoEngine(symbolTable_, resolver, typeChecker, diag_);
     typeChecker.setMonomorphizationEngine(&monoEngine);
+    // Attach MLibMetadataCache so TypeChecker can resolve external symbol types.
+    MLibMetadataCache metadataCache(typeContext_);
+    typeChecker.setMetadataCache(&metadataCache);
     bool tcOk = typeChecker.check(ast.get());
 
     if (!tcOk) {

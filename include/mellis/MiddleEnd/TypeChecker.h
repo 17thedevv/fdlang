@@ -8,6 +8,7 @@
 #include "mellis/Core/FLType.h"
 #include "mellis/MiddleEnd/SymbolTable.h"
 #include "mellis/Support/Diagnostic.h"
+#include "mellis/MLib/MLibMetadataCache.h"
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -23,6 +24,10 @@ public:
     const Type* typeOf(SymbolID id) const;
     TypeContext& getContext() const { return ctx_; }
     void setMonomorphizationEngine(MonomorphizationEngine* engine) { monoEngine_ = engine; }
+
+    // Attach an MLibMetadataCache so TypeChecker can resolve external symbols.
+    // Must be called before check() if any external modules are loaded.
+    void setMetadataCache(MLibMetadataCache* cache) { metadataCache_ = cache; }
 
     void registerImpl(const Type* type, SymbolID traitId);
     bool implementsTrait(const Type* type, SymbolID traitId) const;
@@ -46,9 +51,11 @@ private:
     DiagnosticEngine& diag_;
     TypeContext& ctx_;
     MonomorphizationEngine* monoEngine_;
+    MLibMetadataCache* metadataCache_ = nullptr; // optional, set before check()
     std::vector<const Type*> typeTable_;
     std::unordered_map<const Type*, std::unordered_set<SymbolID>> implementedTraits_;
     MethodResolver methodResolver_;
 };
+
 
 } // namespace fl

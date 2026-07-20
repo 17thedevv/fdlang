@@ -599,6 +599,7 @@ bool TypeChecker::check(ASTNode* root) {
         std::unordered_map<const Type*, std::unordered_set<SymbolID>>& implementedTraits;
         const Type* currentReturnType = nullptr;
         MonomorphizationEngine* monoEngine;
+        MLibMetadataCache* metadataCache; // nullable
         bool isUnsafeContext_ = false;
     bool isAsyncContext_ = false;
 
@@ -608,8 +609,8 @@ bool TypeChecker::check(ASTNode* root) {
             return pre.evaluateTypeNode(node);
         }
     public:
-        ConstraintGenerator(SymbolTable& table, DiagnosticEngine& diag, TypeContext& ctx, std::vector<const Type*>& typeTable, std::vector<Constraint>& constraints, MethodResolver& methodResolver, std::unordered_map<const Type*, std::unordered_set<SymbolID>>& implementedTraits, MonomorphizationEngine* monoEngine)
-              : table(table), diag(diag), ctx(ctx), typeTable(typeTable), constraints(constraints), methodResolver(methodResolver), implementedTraits(implementedTraits), monoEngine(monoEngine) {}
+        ConstraintGenerator(SymbolTable& table, DiagnosticEngine& diag, TypeContext& ctx, std::vector<const Type*>& typeTable, std::vector<Constraint>& constraints, MethodResolver& methodResolver, std::unordered_map<const Type*, std::unordered_set<SymbolID>>& implementedTraits, MonomorphizationEngine* monoEngine, MLibMetadataCache* metadataCache = nullptr)
+              : table(table), diag(diag), ctx(ctx), typeTable(typeTable), constraints(constraints), methodResolver(methodResolver), implementedTraits(implementedTraits), monoEngine(monoEngine), metadataCache(metadataCache) {}
 
         void visit(ProgramNode& node) override { for (auto& item : node.items) item->accept(*this); }
         void visit(ModDeclNode& node) override { for (auto& d : node.decls) d->accept(*this); }
@@ -909,6 +910,24 @@ bool TypeChecker::check(ASTNode* root) {
             if (auto* ident = dynamic_cast<IdentifierExpr*>(node.callee.get())) {
                 if (ident->resolvedSymbol != kInvalidSymbolID) {
                     const auto& sym = table.getSymbol(ident->resolvedSymbol);
+
+                    // ── External Symbol path (loaded from .mlib) ──────────────
+                    if (sym.isExternal && metadataCache) {
+                        const Type* extType = metadataCache->getType(ident->resolvedSymbol);
+                        if (extType && extType->getKind() != TypeKind::Unknown) {
+                            // The cache has the full FunctionType: use it directly.
+                            ident->inferredType = extType;
+                            node.callee->inferredType = extType;
+                            // Constrain the inferred return type
+                            if (auto* ft = dynamic_cast<const FunctionType*>(extType)) {
+                                constraints.push_back(Constraint(ConstraintKind::Equality,
+                                    node.inferredType, ft->returnType, "", node.loc));
+                            }
+                            return;
+                        }
+                    }
+
+                    // ── Local AST symbol path (original logic) ────────────────
                     if (sym.kind == SymbolKind::Function && sym.decl) {
                         auto* fnDecl = static_cast<FunctionDeclNode*>(sym.decl);
                         if (!fnDecl->genericParams.empty()) {
@@ -1733,7 +1752,7 @@ bool TypeChecker::check(ASTNode* root) {
     root->accept(pre);
 
     std::vector<Constraint> constraints;
-    ConstraintGenerator gen(table_, diag_, ctx_, typeTable_, constraints, methodResolver_, implementedTraits_, monoEngine_);
+    ConstraintGenerator gen(table_, diag_, ctx_, typeTable_, constraints, methodResolver_, implementedTraits_, monoEngine_, metadataCache_);
     root->accept(gen);
 
     UnificationEngine solver(table_, diag_, ctx_, typeTable_, methodResolver_);
@@ -1751,6 +1770,17 @@ bool TypeChecker::check(ASTNode* root) {
 
 
 const Type* TypeChecker::typeOf(SymbolID sym) const {
+    // For external symbols (loaded from .mlib), the typeTable_ entry is
+    // ctx_.getUnknown() by default. Check the metadata cache first.
+    if (metadataCache_) {
+        const Symbol& s = table_.getSymbol(sym);
+        if (s.isExternal) {
+            const Type* extType = metadataCache_->getType(sym);
+            if (extType && extType->getKind() != TypeKind::Unknown) {
+                return extType;
+            }
+        }
+    }
     if (sym < typeTable_.size()) return typeTable_[sym];
     return nullptr;
 }

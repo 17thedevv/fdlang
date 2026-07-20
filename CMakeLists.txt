@@ -178,6 +178,7 @@ add_test(NAME TypeCheckerTest COMMAND test_typechecker)
 add_executable(test_mlib
     tests/test_mlib.cpp
     ${MLIB_SRC}
+    src/MiddleEnd/SymbolTable.cpp
     src/MiddleEnd/MVIR.cpp
     src/Core/SourceManager.cpp
     src/Support/Diagnostic.cpp
