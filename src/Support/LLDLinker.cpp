@@ -5,6 +5,7 @@
 // =============================================================================
 
 #include "mellis/Support/LLDLinker.h"
+#include "mellis/Support/OSUtils.h"
 #include <cstdlib>
 #include <iostream>
 
@@ -16,16 +17,20 @@ LLDLinker::LLDLinker(DiagnosticEngine& diag, bool verbose)
 bool LLDLinker::link(const std::string& objFile,
                        const std::string& outFile,
                        const std::vector<std::string>& libs) {
-    // Determine the lld-link path. We'll assume the user has it in PATH or it's accessible.
-    // Use D:\Programs\LLVM-DEV\bin\lld-link.exe as a hardcoded fallback if needed, or rely on system PATH.
-    // For now, we rely on lld-link.
-    std::string linkerPath = "lld-link";
+    std::string exePath = OSUtils::getExecutablePath();
+    std::string binDir = OSUtils::getParentDirectory(exePath, 0); // Directory containing mellis.exe
     
-    // Check if lld-link exists by trying to call it
-    int checkResult = std::system("lld-link --version > NUL 2>&1");
-    if (checkResult != 0) {
+    std::string portableLinker = binDir + "\\lld-link.exe";
+    std::string linkerPath = "lld-link"; // Fallback to PATH
+    
+    if (OSUtils::fileExists(portableLinker)) {
+        linkerPath = "\"" + portableLinker + "\"";
+    } else {
         // Fallback to absolute path on the user's specific setup for LLVM-DEV
-        linkerPath = "\"D:\\Programs\\LLVM-DEV\\bin\\lld-link.exe\"";
+        int checkResult = std::system("lld-link --version > NUL 2>&1");
+        if (checkResult != 0) {
+            linkerPath = "\"D:\\Programs\\LLVM-DEV\\bin\\lld-link.exe\"";
+        }
     }
 
     std::string command = linkerPath + " /OUT:" + outFile + " " + objFile;

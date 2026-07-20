@@ -4,6 +4,7 @@
 
 #include "mellis/BackEnd/ExecutableGenerator.h"
 #include "mellis/MLib/ObjectCodeExtractor.h"
+#include "mellis/Support/OSUtils.h"
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
@@ -149,7 +150,16 @@ bool ExecutableGenerator::generateExecutable(llvm::Module* llvmModule,
     std::cout << "[ExeGen] Object file emitted." << std::endl;
 
     // 3. Link Object File into Executable
-    std::vector<std::string> libs = { "build\\Release\\mellis_rt.lib" };
+    std::string exePath = OSUtils::getExecutablePath();
+    std::string libDir = OSUtils::getParentDirectory(exePath, 1) + "\\lib"; // Parent of bin is mellis root, then lib/
+    std::string portableRt = libDir + "\\mellis_rt.lib";
+    
+    std::string rtLibPath = "build\\Release\\mellis_rt.lib"; // Fallback to local dev build
+    if (OSUtils::fileExists(portableRt)) {
+        rtLibPath = portableRt;
+    }
+    
+    std::vector<std::string> libs = { rtLibPath };
     
     // Extract MLib Object Codes to .fd_obj
     if (!extraMLibs.empty()) {
