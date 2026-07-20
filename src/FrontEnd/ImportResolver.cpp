@@ -77,6 +77,11 @@ static void walkExternalTree(SymbolTable& st,
             return;
         }
 
+        if (!st.getSymbol(*optSym).isExported) {
+            diag.error(tree.loc, "Symbol '" + std::string(leafName) + "' is private.");
+            return;
+        }
+
         std::string_view localName = tree.alias.empty() ? leafName : tree.alias;
         processLeaf(st, currentScope, *optSym, localName, tree.loc);
     } else {

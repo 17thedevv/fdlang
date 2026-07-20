@@ -172,9 +172,9 @@ bool CompilerSession::compile(const std::string& filepath, bool verbose, int opt
     bool tcOk = typeChecker.check(ast.get());
 
     if (!tcOk) {
-        diag_.error(SourceLocation::invalid(), "TypeChecker that bai, nhung tiep tuc de test MVIR...");
+        diag_.error(SourceLocation::invalid(), "Compilation aborted due to TypeChecker errors.");
         diag_.flush();
-        // return false;
+        return false;
     }
     if (verbose) std::cout << "[6] Type Checker thanh cong!" << std::endl;
 

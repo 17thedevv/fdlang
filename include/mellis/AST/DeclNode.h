@@ -83,6 +83,7 @@ public:
     std::string_view          name;
     std::unique_ptr<TypeNode> type;
     SymbolID                  symbolId = kInvalidSymbolID;
+    bool                      isPublic = false;
     void accept(ASTVisitor& v) override;
     ASTNode* cloneImpl() const override;
 };

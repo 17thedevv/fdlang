@@ -513,6 +513,11 @@ std::unique_ptr<DeclNode> Parser::parseStructDecl() {
     while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {
         auto field = std::make_unique<StructFieldNode>();
         field->loc = SourceLocation::fromLineCol(kMainFileID, current.line, current.col, current.byteOffset);
+        
+        if (match(TokenType::KW_EXPORT)) {
+            field->isPublic = true;
+        }
+        
         Token fName = consume(TokenType::IDENTIFIER, "Expected field name");
         field->name = fName.text;
         consume(TokenType::COLON, "Expected ':' after field name");

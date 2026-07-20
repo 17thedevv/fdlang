@@ -155,14 +155,18 @@ target_link_libraries(test_resolver PRIVATE ${LLVM_LIBS})
 add_test(NAME ResolverTest COMMAND test_resolver)
 
 # ── test_diagnostic ───────────────────────────────────────────────────────────
-# Cần: DiagnosticEngine only (no Lexer/Parser/Resolver)
 add_executable(test_diagnostic
     tests/test_diagnostic.cpp
-    src/Support/Diagnostic.cpp
-
+    ${AST_SRC}
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+    ${SUPPORT_SRC}
     ${CORE_SRC}
 )
 target_include_directories(test_diagnostic PRIVATE include)
+target_link_libraries(test_diagnostic PRIVATE ${LLVM_LIBS})
 add_test(NAME DiagnosticTest COMMAND test_diagnostic)
 
 # ── test_typechecker ──────────────────────────────────────────────────────────

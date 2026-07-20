@@ -41,7 +41,8 @@ enum class TypeKind : uint8_t {
     Void,
     Closure,
     Future,
-    Unknown
+    Unknown,
+    Error
 };
 
 // Base class for all Semantic Types
@@ -102,6 +103,18 @@ public:
             return builtinKind == o->builtinKind;
         }
         return false;
+    }
+};
+
+// -----------------------------------------------------------------------------
+// Error Type (Used for Error Recovery)
+// -----------------------------------------------------------------------------
+class ErrorType : public Type {
+public:
+    TypeKind getKind() const override { return TypeKind::Error; }
+    std::string toString() const override { return "{error}"; }
+    bool equals(const Type* other) const override {
+        return other->getKind() == TypeKind::Error;
     }
 };
 
@@ -562,6 +575,7 @@ class TypeContext {
     const Type* neverType_ = nullptr;
     const Type* voidType_ = nullptr;
     const Type* unknownType_ = nullptr;
+    const Type* errorType_ = nullptr;
 
 public:
     UnificationTable unificationTable;
@@ -571,6 +585,7 @@ public:
         neverType_ = create<NeverType>();
         voidType_ = create<VoidType>();
         unknownType_ = create<UnknownType>();
+        errorType_ = create<ErrorType>();
         
         // Primitives
         for (int i = 0; i <= (int)BuiltinKind::Void; ++i) {
@@ -592,6 +607,7 @@ public:
     const Type* getNever() const { return neverType_; }
     const Type* getVoid() const { return voidType_; }
     const Type* getUnknown() const { return unknownType_; }
+    const Type* getError() const { return errorType_; }
 
     uint32_t newVar() { return unificationTable.newVar(); }
 
@@ -677,7 +693,7 @@ public:
         if (auto* st = dynamic_cast<const SliceType*>(t)) {
             return getSliceType(substitute(st->elementType, mapping));
         }
-        return t; // primitive, unknown, void, never
+        return t; // primitive, unknown, void, never, error
     }
 
     const StructType* getStructType(SymbolID id, std::vector<const Type*> args = {}) {

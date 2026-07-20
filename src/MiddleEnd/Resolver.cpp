@@ -52,6 +52,8 @@ public:
         if (declNode) {
             if (auto* d = dynamic_cast<DeclNode*>(declNode)) {
                 sym.isExported = d->isExported;
+            } else if (auto* f = dynamic_cast<StructFieldNode*>(declNode)) {
+                sym.isExported = f->isPublic;
             }
         }
         return symId;

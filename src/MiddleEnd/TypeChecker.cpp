@@ -1152,6 +1152,7 @@ bool TypeChecker::check(ASTNode* root) {
             t1 = ctx.unificationTable.deepResolve(t1, ctx);
             t2 = ctx.unificationTable.deepResolve(t2, ctx);
             if (!t1 || !t2) return false;
+            if (t1->getKind() == TypeKind::Error || t2->getKind() == TypeKind::Error) return true;
             if (t1 == t2 || t1->equals(t2)) return true;
             
             auto* inf1 = dynamic_cast<const InferenceVarType*>(t1);
@@ -1692,6 +1693,9 @@ bool TypeChecker::check(ASTNode* root) {
                     auto* structDecl = static_cast<StructDeclNode*>(sym.decl);
                     for (size_t i = 0; i < structDecl->fields.size(); ++i) {
                         if (structDecl->fields[i]->name == node.member) {
+                            if (sym.isExternal && !structDecl->fields[i]->isPublic) {
+                                diag.error(node.loc, "Field '" + std::string(node.member) + "' of struct '" + sym.name.str() + "' is private.");
+                            }
                             node.resolvedFieldIndex = i;
                             break;
                         }
@@ -1730,6 +1734,20 @@ bool TypeChecker::check(ASTNode* root) {
         }
         void visit(StructInitExpr& node) override {
             resolve(node.inferredType, node.loc);
+            
+            if (node.structId != kInvalidSymbolID) {
+                const auto& sym = table.getSymbol(node.structId);
+                if (sym.isExternal && sym.kind == SymbolKind::Struct && sym.decl) {
+                    auto* structDecl = static_cast<const StructDeclNode*>(sym.decl);
+                    for (auto& field : structDecl->fields) {
+                        if (!field->isPublic) {
+                            diag.error(node.loc, "Struct '" + sym.name.str() + "' has private field '" + std::string(field->name) + "' and cannot be initialized directly.");
+                            break;
+                        }
+                    }
+                }
+            }
+            
             for (auto& field : node.fields) {
                 if (field.value) field.value->accept(*this);
             }
