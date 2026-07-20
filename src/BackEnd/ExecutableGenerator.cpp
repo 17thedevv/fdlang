@@ -46,10 +46,10 @@ static std::optional<std::string> extractMLibObject(const std::string& mlibPath,
         return std::nullopt;
     }
 
-    uint64_t currentOffset = header->directoryOffset;
+    uint64_t currentOffset = header->sectionTableOffset;
     for (uint32_t i = 0; i < header->sectionCount; ++i) {
-        if (currentOffset + sizeof(mlib::SectionHeader) > buffer.size()) break;
-        const auto* secHeader = reinterpret_cast<const mlib::SectionHeader*>(buffer.data() + currentOffset);
+        if (currentOffset + sizeof(mlib::SectionEntry) > buffer.size()) break;
+        const auto* secHeader = reinterpret_cast<const mlib::SectionEntry*>(buffer.data() + currentOffset);
         if (secHeader->sectionType == static_cast<uint32_t>(mlib::SectionType::ObjectCode)) {
             if (secHeader->offset + secHeader->size <= buffer.size()) {
                 mlib::ObjectCodeExtractor extractor(buffer.data() + secHeader->offset, secHeader->size);
@@ -66,7 +66,7 @@ static std::optional<std::string> extractMLibObject(const std::string& mlibPath,
                 }
             }
         }
-        currentOffset += sizeof(mlib::SectionHeader);
+        currentOffset += sizeof(mlib::SectionEntry);
     }
     return std::nullopt;
 }

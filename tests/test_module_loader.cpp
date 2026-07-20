@@ -10,6 +10,8 @@
 #include "mellis/MLib/StringTableBuilder.h"
 #include "mellis/MLib/ManifestBuilder.h"
 #include "mellis/MLib/MetadataBuilder.h"
+#include "mellis/MLib/MacroMetadataBuilder.h"
+#include "mellis/FrontEnd/MacroRegistry.h"
 #include "mellis/MiddleEnd/SymbolTable.h"
 #include "mellis/Support/Diagnostic.h"
 #include "mellis/Core/SourceLocation.h"
@@ -89,18 +91,26 @@ static void writeMiniMlib(const std::string& path) {
     }
     auto traitBytes = traitWriter.takeBuffer();
 
+    // Build MacroMetadata (vec)
+    MacroMetadataBuilder macroBuilder;
+    macroBuilder.addMacro("vec", "macro vec(@items: expr...) { dec v = $crate::Vec::new(); return v; }");
+    BinaryWriter macroWriter;
+    macroBuilder.serialize(macroWriter);
+    auto macroBytes = macroWriter.takeBuffer();
+
     // ── Assemble the .mlib binary ─────────────────────────────────────────────
     // Layout:
-    //   [MLibHeader] [SectionTable: 4 entries] [String Data] [Export Data]
-    //                                           [Type Data]   [Trait Data]
+    //   [MLibHeader] [SectionTable: 5 entries] [String Data] [Export Data]
+    //                                           [Type Data]   [Trait Data] [Macro Data]
 
-    const uint32_t NUM_SECTIONS = 4;
+    const uint32_t NUM_SECTIONS = 5;
     const uint64_t headerSize   = sizeof(MLibHeader);
     const uint64_t tableSize    = NUM_SECTIONS * sizeof(SectionEntry);
     const uint64_t strOffset    = headerSize + tableSize;
     const uint64_t exportOffset = strOffset + strBytes.size();
     const uint64_t typeOffset   = exportOffset + exportBytes.size();
     const uint64_t traitOffset  = typeOffset + typeBytes.size();
+    const uint64_t macroOffset  = traitOffset + traitBytes.size();
 
     MLibHeader hdr{};
     std::memcpy(hdr.magic, MLIB_MAGIC, 4);
@@ -126,6 +136,7 @@ static void writeMiniMlib(const std::string& path) {
         makeSection(2, SectionType::ExportTable,   exportOffset, exportBytes.size()),
         makeSection(3, SectionType::TypeMetadata,  typeOffset,   typeBytes.size()),
         makeSection(4, SectionType::TraitMetadata, traitOffset,  traitBytes.size()),
+        makeSection(5, SectionType::MacroMetadata, macroOffset,  macroBytes.size()),
     };
 
     std::ofstream out(path, std::ios::binary);
@@ -135,6 +146,7 @@ static void writeMiniMlib(const std::string& path) {
     out.write(reinterpret_cast<const char*>(exportBytes.data()), exportBytes.size());
     out.write(reinterpret_cast<const char*>(typeBytes.data()), typeBytes.size());
     out.write(reinterpret_cast<const char*>(traitBytes.data()), traitBytes.size());
+    out.write(reinterpret_cast<const char*>(macroBytes.data()), macroBytes.size());
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,8 +162,9 @@ void testModuleLoaderBasic() {
 
     DiagnosticEngine diag;
     SymbolTable symbolTable;
+    MacroRegistry macroRegistry(diag);
 
-    ModuleLoader loader(symbolTable, diag, {tmpDir});
+    ModuleLoader loader(symbolTable, diag, &macroRegistry, {tmpDir});
 
     // Test: module not yet loaded
     assert(!loader.isLoaded("testmod"));
@@ -187,6 +200,12 @@ void testModuleLoaderBasic() {
     const Symbol& addSymbol = symbolTable.getSymbol(*addSym);
     assert(addSymbol.externalModuleID[0] == 1);
     assert(addSymbol.externalModuleID[15] == 16);
+
+    // Verify macro was injected
+    assert(macroRegistry.getAllMacros().size() == 1);
+    const auto* macro = macroRegistry.getMacro(1);
+    assert(macro != nullptr);
+    assert(macro->templateAST->name == "vec");
 }
 
 void testModuleLoaderCacheHit() {
@@ -194,7 +213,8 @@ void testModuleLoaderCacheHit() {
 
     DiagnosticEngine diag;
     SymbolTable symbolTable;
-    ModuleLoader loader(symbolTable, diag, {tmpDir});
+    MacroRegistry macroRegistry(diag);
+    ModuleLoader loader(symbolTable, diag, &macroRegistry, {tmpDir});
 
     ScopeID scope1 = loader.loadModule("testmod", SourceLocation::invalid());
     ScopeID scope2 = loader.loadModule("testmod", SourceLocation::invalid()); // cache hit
@@ -206,7 +226,8 @@ void testModuleLoaderCacheHit() {
 void testModuleLoaderMissingModule() {
     DiagnosticEngine diag;
     SymbolTable symbolTable;
-    ModuleLoader loader(symbolTable, diag, {"/nonexistent/path"});
+    MacroRegistry macroRegistry(diag);
+    ModuleLoader loader(symbolTable, diag, &macroRegistry, {"/nonexistent/path"});
 
     ScopeID scope = loader.loadModule("ghost", SourceLocation::invalid());
     assert(scope == kInvalidScopeID);

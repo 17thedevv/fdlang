@@ -457,6 +457,7 @@ std::unique_ptr<DeclNode> Parser::parseFunctionDecl(bool allowEmptyBody) {
     } else {
         funcDecl->body = parseBlockStatement();
     }
+    funcDecl->endLoc = SourceLocation::fromLineCol(kMainFileID, prev.line, prev.col, prev.byteOffset + prev.text.length());
     return funcDecl;
 }
 
@@ -493,6 +494,9 @@ std::unique_ptr<DeclNode> Parser::parseMacroDecl() {
     }
     consume(TokenType::R_PAREN, "Expected ')' after macro parameters");
     node->body = parseBlockStatement();
+    
+    // Macro body ends exactly after the block '}'
+    node->endLoc = SourceLocation::fromLineCol(kMainFileID, prev.line, prev.col, prev.byteOffset + prev.text.length());
     return node;
 }
 
@@ -517,6 +521,7 @@ std::unique_ptr<DeclNode> Parser::parseStructDecl() {
         consume(TokenType::SEMI, "Expected ';' after struct field");
     }
     consume(TokenType::R_BRACE, "Expected '}' to end struct body");
+    node->endLoc = SourceLocation::fromLineCol(kMainFileID, prev.line, prev.col, prev.byteOffset + prev.text.length());
     return node;
 }
 
@@ -556,6 +561,7 @@ std::unique_ptr<DeclNode> Parser::parseEnumDecl() {
         if (!match(TokenType::COMMA)) break;
     }
     consume(TokenType::R_BRACE, "Expected '}'");
+    node->endLoc = SourceLocation::fromLineCol(kMainFileID, prev.line, prev.col, prev.byteOffset + prev.text.length());
     return node;
 }
 
@@ -585,6 +591,7 @@ std::unique_ptr<DeclNode> Parser::parseTraitDecl() {
         }
     }
     consume(TokenType::R_BRACE, "Expected '}'");
+    node->endLoc = SourceLocation::fromLineCol(kMainFileID, prev.line, prev.col, prev.byteOffset + prev.text.length());
     return node;
 }
 
@@ -618,6 +625,7 @@ std::unique_ptr<DeclNode> Parser::parseImplDecl() {
         }
     }
     consume(TokenType::R_BRACE, "Expected '}'");
+    node->endLoc = SourceLocation::fromLineCol(kMainFileID, prev.line, prev.col, prev.byteOffset + prev.text.length());
     return node;
 }
 

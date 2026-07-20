@@ -64,6 +64,7 @@ set(SUPPORT_SRC
     src/Support/Diagnostic.cpp
     src/Support/OSUtils.cpp
     src/Support/LLDLinker.cpp
+    src/Support/ClangLinker.cpp
 )
 
 # Tạo file thực thi chính
@@ -96,51 +97,65 @@ enable_testing()
 add_executable(test_ast_manual
     tests/test_ast_manual.cpp
     ${AST_SRC}
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
     ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_ast_manual PRIVATE include)
+target_link_libraries(test_ast_manual PRIVATE ${LLVM_LIBS})
 add_test(NAME ASTManualTest COMMAND test_ast_manual)
 
 # ── test_lexer ────────────────────────────────────────────────────────────────
 add_executable(test_lexer
     tests/test_lexer.cpp
+    ${AST_SRC}
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
-    src/FrontEnd/Lexer.cpp
-    src/Support/Diagnostic.cpp
-
-    src/Core/SourceManager.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_lexer PRIVATE include)
+target_link_libraries(test_lexer PRIVATE ${LLVM_LIBS})
 add_test(NAME LexerTest COMMAND test_lexer)
 
 # ── test_parser ───────────────────────────────────────────────────────────────
 add_executable(test_parser
     tests/test_parser.cpp
-    src/FrontEnd/Lexer.cpp
-    src/FrontEnd/Parser.cpp
-    src/Support/Diagnostic.cpp
     ${AST_SRC}
-
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_parser PRIVATE include)
+target_link_libraries(test_parser PRIVATE ${LLVM_LIBS})
 add_test(NAME ParserTest COMMAND test_parser)
 
 # ── test_resolver ─────────────────────────────────────────────────────────────
 # Cần: Lexer, Parser, SymbolTable, Resolver
 add_executable(test_resolver
     tests/test_resolver.cpp
-    src/FrontEnd/Lexer.cpp
-    src/FrontEnd/Parser.cpp
-    src/MiddleEnd/SymbolTable.cpp
-    src/MiddleEnd/Resolver.cpp
-    src/Support/Diagnostic.cpp
     ${AST_SRC}
-
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_resolver PRIVATE include)
+target_link_libraries(test_resolver PRIVATE ${LLVM_LIBS})
 add_test(NAME ResolverTest COMMAND test_resolver)
 
 # ── test_diagnostic ───────────────────────────────────────────────────────────
@@ -157,122 +172,111 @@ add_test(NAME DiagnosticTest COMMAND test_diagnostic)
 # ── test_typechecker ──────────────────────────────────────────────────────────
 add_executable(test_typechecker
     tests/test_typechecker.cpp
-    src/FrontEnd/Lexer.cpp
-    src/FrontEnd/Parser.cpp
-    src/MiddleEnd/SymbolTable.cpp
-    src/MiddleEnd/Resolver.cpp
-    src/MiddleEnd/TypeChecker.cpp
-    src/MiddleEnd/MatchAnalyzer.cpp
-    src/MiddleEnd/MonomorphizationEngine.cpp
-    src/MiddleEnd/Mangle.cpp
-    src/MiddleEnd/SubstitutionVisitor.cpp
-    src/Support/Diagnostic.cpp
     ${AST_SRC}
-
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_typechecker PRIVATE include)
+target_link_libraries(test_typechecker PRIVATE ${LLVM_LIBS})
 add_test(NAME TypeCheckerTest COMMAND test_typechecker)
 
 
 # ── test_mlib ─────────────────────────────────────────────────────────────────
 add_executable(test_mlib
     tests/test_mlib.cpp
+    ${AST_SRC}
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
     ${MLIB_SRC}
-    src/MiddleEnd/SymbolTable.cpp
-    src/MiddleEnd/MVIR.cpp
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
-    src/Support/Diagnostic.cpp
-    src/Support/OSUtils.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_mlib PRIVATE include)
+target_link_libraries(test_mlib PRIVATE ${LLVM_LIBS})
 add_test(NAME MLibTest COMMAND test_mlib)
 
 # ── test_module_loader ────────────────────────────────────────────────────────
 add_executable(test_module_loader
     tests/test_module_loader.cpp
+    ${AST_SRC}
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
     ${MLIB_SRC}
-    src/MiddleEnd/SymbolTable.cpp
-    src/MiddleEnd/MVIR.cpp
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
-    src/Support/Diagnostic.cpp
-    src/Support/OSUtils.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_module_loader PRIVATE include)
+target_link_libraries(test_module_loader PRIVATE ${LLVM_LIBS})
 add_test(NAME ModuleLoaderTest COMMAND test_module_loader)
 
 # ── test_cfg ──────────────────────────────────────────────────────────
 add_executable(test_cfg
     tests/test_cfg.cpp
-    src/FrontEnd/Lexer.cpp
-    src/FrontEnd/Parser.cpp
-    src/MiddleEnd/CFG.cpp
-    src/Support/Diagnostic.cpp
     ${AST_SRC}
-
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_cfg PRIVATE include)
+target_link_libraries(test_cfg PRIVATE ${LLVM_LIBS})
 add_test(NAME CFGTest COMMAND test_cfg)
 
 # ── test_mvir_generator ───────────────────────────────────────────────────────
 add_executable(test_mvir_generator
     tests/test_mvir_generator.cpp
-    src/FrontEnd/Lexer.cpp
-    src/FrontEnd/Parser.cpp
-    src/MiddleEnd/SymbolTable.cpp
-    src/MiddleEnd/Resolver.cpp
-    src/MiddleEnd/TypeChecker.cpp
-    src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
-    src/MiddleEnd/MonomorphizationEngine.cpp
-    src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
-    src/Support/Diagnostic.cpp
     ${AST_SRC}
-
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_mvir_generator PRIVATE include)
+target_link_libraries(test_mvir_generator PRIVATE ${LLVM_LIBS})
 add_test(NAME MVIRGeneratorTest COMMAND test_mvir_generator)
 
 # ── test_borrow_checker ───────────────────────────────────────────────────────
 add_executable(test_borrow_checker
     tests/test_borrow_checker.cpp
-    src/FrontEnd/Lexer.cpp
-    src/FrontEnd/Parser.cpp
-    src/MiddleEnd/SymbolTable.cpp
-    src/MiddleEnd/Resolver.cpp
-    src/MiddleEnd/TypeChecker.cpp
-    src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
-    src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
-    src/MiddleEnd/MonomorphizationEngine.cpp
-    src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
-    src/Support/Diagnostic.cpp
     ${AST_SRC}
-
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_borrow_checker PRIVATE include)
+target_link_libraries(test_borrow_checker PRIVATE ${LLVM_LIBS})
 add_test(NAME BorrowCheckerTest COMMAND test_borrow_checker)
 
 # ── test_llvmir_generator ───────────────────────────────────────────────────────
 add_executable(test_llvmir_generator
     tests/test_llvmir_generator.cpp
-    src/FrontEnd/Lexer.cpp
-    src/FrontEnd/Parser.cpp
-    src/MiddleEnd/SymbolTable.cpp
-    src/MiddleEnd/Resolver.cpp
-    src/MiddleEnd/TypeChecker.cpp
-    src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
-    src/MiddleEnd/MonomorphizationEngine.cpp
-    src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
-    src/BackEnd/LLVMIRGenerator.cpp
-    src/Support/Diagnostic.cpp
     ${AST_SRC}
-
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_llvmir_generator PRIVATE include)
 target_link_libraries(test_llvmir_generator PRIVATE ${LLVM_LIBS})
@@ -281,23 +285,14 @@ add_test(NAME LLVMIRGeneratorTest COMMAND test_llvmir_generator)
 # ── test_executable_generator ───────────────────────────────────────────────────
 add_executable(test_executable_generator
     tests/test_executable_generator.cpp
-    src/FrontEnd/Lexer.cpp
-    src/FrontEnd/Parser.cpp
-    src/MiddleEnd/SymbolTable.cpp
-    src/MiddleEnd/Resolver.cpp
-    src/MiddleEnd/TypeChecker.cpp
-    src/MiddleEnd/MVIR.cpp
-    src/MiddleEnd/MVIRGenerator.cpp src/MiddleEnd/MVIROptimizer.cpp src/MiddleEnd/MatchAnalyzer.cpp src/MiddleEnd/BorrowChecker.cpp src/MiddleEnd/LivenessAnalyzer.cpp
-    src/MiddleEnd/MonomorphizationEngine.cpp
-    src/MiddleEnd/Mangle.cpp src/MiddleEnd/SubstitutionVisitor.cpp
-    src/BackEnd/LLVMIRGenerator.cpp
-    src/BackEnd/ExecutableGenerator.cpp
-    src/Support/LLDLinker.cpp
-    src/Support/ClangLinker.cpp
-    src/Support/Diagnostic.cpp
     ${AST_SRC}
-
+    ${FRONTEND_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+    ${SUPPORT_SRC}
     src/Core/SourceManager.cpp
+    src/Core/CompilerSession.cpp
 )
 target_include_directories(test_executable_generator PRIVATE include)
 target_link_libraries(test_executable_generator PRIVATE ${LLVM_LIBS})

@@ -42,6 +42,9 @@ public:
     // Lookup a macro by name
     MacroID findMacroByName(const std::string& name) const;
 
+    // Get all registered macros
+    const std::vector<MacroDefinition>& getAllMacros() const { return macros_; }
+
 private:
     DiagnosticEngine& diag_;
     MacroID nextId_;

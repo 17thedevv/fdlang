@@ -112,7 +112,7 @@ bool CompilerSession::compile(const std::string& filepath, bool verbose, int opt
     
     // ── Phase 1.3: Import & Macro Resolution ─────────────────────
     if (verbose) std::cout << "[1.3] Phan giai Import & Macro..." << std::endl;
-    ModuleLoader moduleLoader(symbolTable_, diag_, libraryPaths_);
+    ModuleLoader moduleLoader(symbolTable_, diag_, &macroRegistry, libraryPaths_);
     ImportResolver importResolver(diag_, symbolTable_, moduleLoader);
     MacroResolver macroResolver(macroRegistry, diag_);
     if (ast) {
@@ -161,6 +161,14 @@ bool CompilerSession::compile(const std::string& filepath, bool verbose, int opt
     // Attach MLibMetadataCache so TypeChecker can resolve external symbol types.
     MLibMetadataCache metadataCache(typeContext_);
     typeChecker.setMetadataCache(&metadataCache);
+
+    // Register Source-based generic Impl blocks loaded from .mlib
+    for (const auto& pair : moduleLoader.getInjectedGenericImpls()) {
+        SymbolID targetStructId = pair.first;
+        ImplDeclNode* implNode = pair.second;
+        monoEngine.registerGenericImpl(targetStructId, implNode);
+    }
+
     bool tcOk = typeChecker.check(ast.get());
 
     if (!tcOk) {

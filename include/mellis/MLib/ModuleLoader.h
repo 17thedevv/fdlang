@@ -24,6 +24,7 @@
 #include "mellis/MLib/StringTableBuilder.h"
 #include "mellis/MiddleEnd/SymbolTable.h"
 #include "mellis/Support/Diagnostic.h"
+#include "mellis/AST/DeclNode.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -31,10 +32,13 @@
 
 namespace fl {
 
+class MacroRegistry;
+
 class ModuleLoader {
 public:
     ModuleLoader(SymbolTable& symbolTable,
                  DiagnosticEngine& diag,
+                 MacroRegistry* macroRegistry = nullptr,
                  const std::vector<std::string>& extraLibraryPaths = {});
 
     // Load an external module by name (e.g. "std").
@@ -51,6 +55,7 @@ public:
 private:
     SymbolTable& symbolTable;
     DiagnosticEngine& diag;
+    MacroRegistry* macroRegistry;
     std::vector<std::string> searchPaths;
     std::unordered_map<std::string, ScopeID> loadedModules;
     std::vector<std::string> loadedMLibPaths_;
@@ -62,7 +67,8 @@ private:
     // Registers all exported Functions, Types, and Traits into virtualScope.
     void parseMLibMetadata(const std::string& path,
                            ScopeID virtualScope,
-                           const uint8_t moduleUUID[16]);
+                           const uint8_t hintUUID[16],
+                           std::string_view moduleName);
 
     // Parse the raw string table bytes and return offset-indexed strings.
     // StringTable layout: null-terminated strings packed contiguously.
@@ -86,14 +92,32 @@ private:
                        const uint8_t moduleUUID[16]);
 
     void registerTraits(const std::vector<uint8_t>& fileData,
-                        uint64_t sectionOffset,
-                        uint64_t sectionSize,
-                        ScopeID virtualScope,
-                        const std::vector<char>& strings,
+                        uint64_t sectionOffset, uint64_t sectionSize,
+                        ScopeID virtualScope, const std::vector<char>& strings,
                         const uint8_t moduleUUID[16]);
 
-};
+    void loadMacroMetadata(const std::vector<uint8_t>& fileData,
+                           uint64_t sectionOffset, uint64_t sectionSize,
+                           const std::vector<char>& strings,
+                           std::string_view moduleName);
 
+    void loadGenericMetadata(const std::vector<uint8_t>& fileData,
+                             uint64_t sectionOffset, uint64_t sectionSize,
+                             const std::vector<char>& strings,
+                             ScopeID virtualScope,
+                             std::string_view moduleName);
+
+public:
+    // Exposes parsed generic Impl blocks for MonomorphizationEngine.
+    // The AST nodes are owned by ModuleLoader (injectedGenerics_).
+    std::vector<std::pair<SymbolID, class ImplDeclNode*>> getInjectedGenericImpls() const {
+        return injectedImpls_;
+    }
+
+private:
+    std::vector<std::unique_ptr<class DeclNode>> injectedGenerics_;
+    std::vector<std::pair<SymbolID, class ImplDeclNode*>> injectedImpls_;
+};
 } // namespace fl
 
 #endif // MELLIS_MLIB_MODULELOADER_H

@@ -24,7 +24,17 @@ enum class SectionType : uint32_t {
     Debug = 9,
     Manifest = 10,
     ImplTable = 11,
+    MacroMetadata = 12,
+    GenericMetadata = 13,
     Custom = 0xFFFFFFFF
+};
+
+enum class GenericKind : uint8_t {
+    Function = 0,
+    Struct = 1,
+    Enum = 2,
+    Impl = 3,
+    Trait = 4
 };
 
 enum class SectionCompression : uint8_t {

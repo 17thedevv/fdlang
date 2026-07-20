@@ -5,6 +5,10 @@
 #include "mellis/MLib/ModuleLoader.h"
 #include "mellis/MLib/MLibFormat.h"
 #include "mellis/Support/OSUtils.h"
+#include "mellis/FrontEnd/Lexer.h"
+#include "mellis/FrontEnd/Parser.h"
+#include "mellis/FrontEnd/MacroRegistry.h"
+#include <iostream>
 #include <fstream>
 #include <cstring>
 #include <stdexcept>
@@ -19,10 +23,8 @@ using namespace mlib;
 // Constructor
 // ─────────────────────────────────────────────────────────────────────────────
 
-ModuleLoader::ModuleLoader(SymbolTable& symbolTable,
-                           DiagnosticEngine& diag,
-                           const std::vector<std::string>& extraLibraryPaths)
-    : symbolTable(symbolTable), diag(diag) {
+ModuleLoader::ModuleLoader(SymbolTable& symbolTable, DiagnosticEngine& diag, MacroRegistry* macroRegistry, const std::vector<std::string>& extraLibraryPaths)
+    : symbolTable(symbolTable), diag(diag), macroRegistry(macroRegistry) {
     namespace fs = std::filesystem;
 
     // 1. Local project (future FDLang package manager)
@@ -86,7 +88,7 @@ ScopeID ModuleLoader::loadModule(std::string_view moduleName, SourceLocation loc
 
     // Parse only Header + Metadata — no MVIR, no ObjectCode.
     try {
-        parseMLibMetadata(path, virtualScope, nullptr);
+        parseMLibMetadata(path, virtualScope, nullptr, moduleName);
         loadedMLibPaths_.push_back(path);
     } catch (const std::exception& ex) {
         diag.error(loc, std::string("Failed to load module '") + key + "': " + ex.what());
@@ -125,7 +127,8 @@ std::string ModuleLoader::findMLibFile(std::string_view moduleName) const {
 
 void ModuleLoader::parseMLibMetadata(const std::string& path,
                                      ScopeID virtualScope,
-                                     const uint8_t* hintUUID) {
+                                     const uint8_t hintUUID[16],
+                                     std::string_view moduleName) {
     // Read the entire file into memory.
     // The file is small at this stage (only strings + metadata tables).
     std::ifstream file(path, std::ios::binary | std::ios::ate);
@@ -186,6 +189,14 @@ void ModuleLoader::parseMLibMetadata(const std::string& path,
             case SectionType::TraitMetadata:
                 registerTraits(fileData, sections[i].offset, sections[i].size,
                                 virtualScope, strings, moduleUUID);
+                break;
+            case SectionType::MacroMetadata:
+                loadMacroMetadata(fileData, sections[i].offset, sections[i].size,
+                                  strings, moduleName);
+                break;
+            case SectionType::GenericMetadata:
+                loadGenericMetadata(fileData, sections[i].offset, sections[i].size,
+                                    strings, virtualScope, moduleName);
                 break;
             default:
                 // GenericMVIR, ObjectCode, Debug, Dependency — skip (lazy load).
@@ -302,4 +313,103 @@ void ModuleLoader::registerTraits(const std::vector<uint8_t>& fileData,
     }
 }
 
+void ModuleLoader::loadMacroMetadata(const std::vector<uint8_t>& fileData,
+                                     uint64_t sectionOffset, uint64_t sectionSize,
+                                     const std::vector<char>& strings,
+                                     std::string_view moduleName) {
+    if (!macroRegistry) return;
+    if (sectionSize == 0) return;
+
+    BinaryReader reader(fileData.data() + sectionOffset, sectionSize);
+    uint32_t count = reader.readU32();
+    for (uint32_t i = 0; i < count; ++i) {
+        std::string macroName = reader.readString();
+        std::string rawSource = reader.readString();
+
+        // 1. Replace $crate with the actual moduleName
+        std::string replacedSource;
+        const std::string crateStr = "$crate";
+        size_t pos = 0;
+        size_t lastPos = 0;
+        while ((pos = rawSource.find(crateStr, lastPos)) != std::string::npos) {
+            replacedSource += rawSource.substr(lastPos, pos - lastPos);
+            replacedSource += moduleName;
+            lastPos = pos + crateStr.length();
+        }
+        replacedSource += rawSource.substr(lastPos);
+
+        // 2. Parse the string into a MacroDeclNode
+        std::string* permanentStr = new std::string(replacedSource);
+        Lexer lexer(*permanentStr);
+
+        Parser parser(lexer, diag);
+        auto node = parser.parseMacroDecl();
+        
+        // 3. Inject into MacroRegistry
+        if (node) {
+            auto* macroNode = static_cast<MacroDeclNode*>(node.release());
+            macroRegistry->registerMacro(macroNode);
+            // Ownership of macroNode is typically kept in an AST context, 
+            // but for simplicity, we assume registerMacro keeps it or we leak it (if it doesn't take ownership).
+            // In FDLang, usually the AST tree owns nodes, but macros are special.
+            // Let's assume MacroRegistry takes ownership or we just let it leak for now since it's global.
+        }
+    }
+}
+
+void ModuleLoader::loadGenericMetadata(const std::vector<uint8_t>& fileData,
+                                       uint64_t sectionOffset, uint64_t sectionSize,
+                                       const std::vector<char>& strings,
+                                       ScopeID virtualScope,
+                                       std::string_view moduleName) {
+    if (sectionSize == 0) return;
+
+    BinaryReader reader(fileData.data() + sectionOffset, sectionSize);
+    uint32_t count = reader.readU32();
+    for (uint32_t i = 0; i < count; ++i) {
+        GenericKind kind = static_cast<GenericKind>(reader.readU8());
+        std::string name = reader.readString();
+        std::string rawSource = reader.readString();
+
+        // 1. Replace $crate with actual moduleName
+        std::string replacedSource;
+        const std::string crateStr = "$crate";
+        size_t pos = 0;
+        size_t lastPos = 0;
+        while ((pos = rawSource.find(crateStr, lastPos)) != std::string::npos) {
+            replacedSource += rawSource.substr(lastPos, pos - lastPos);
+            replacedSource += moduleName;
+            lastPos = pos + crateStr.length();
+        }
+        replacedSource += rawSource.substr(lastPos);
+
+        // 2. Parse the string into a DeclNode
+        // We heap allocate the string so string_views in the AST remain valid.
+        std::string* permanentStr = new std::string(replacedSource);
+        Lexer lexer(*permanentStr);
+        Parser parser(lexer, diag);
+        
+        auto item = parser.parseDeclaration();
+        if (auto decl = std::unique_ptr<DeclNode>(dynamic_cast<DeclNode*>(item.release()))) {
+            // 3. Inject into virtual scope or Impl list
+            if (kind == GenericKind::Impl) {
+                auto* implNode = static_cast<ImplDeclNode*>(decl.get());
+                auto optSym = symbolTable.lookupInScope(name, virtualScope);
+                if (optSym) {
+                    injectedImpls_.push_back({*optSym, implNode});
+                } else {
+                    diag.error(SourceLocation::invalid(), "Could not find target struct '" + name + "' in .mlib");
+                }
+                injectedGenerics_.push_back(std::move(decl));
+            } else {
+                // For Function, Struct, Enum: find the symbol in virtualScope and update its AST node
+                auto optSym = symbolTable.lookupInScope(name, virtualScope);
+                if (optSym) {
+                    symbolTable.getMutableSymbol(*optSym).decl = decl.get();
+                }
+                injectedGenerics_.push_back(std::move(decl));
+            }
+        }
+    }
+}
 } // namespace fl

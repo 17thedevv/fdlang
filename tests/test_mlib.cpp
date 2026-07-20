@@ -10,6 +10,7 @@
 #include "mellis/MLib/GenericDeserializer.h"
 #include "mellis/MLib/ObjectCodeBuilder.h"
 #include "mellis/MLib/ObjectCodeExtractor.h"
+#include "mellis/MLib/MacroMetadataBuilder.h"
 #include "mellis/MLib/DebugInfoBuilder.h"
 #include "mellis/MLib/DepGraphBuilder.h"
 #include "mellis/MLib/DocSectionBuilder.h"
@@ -364,6 +365,63 @@ void testDocSection() {
     assert(!missing.has_value());
 }
 
+void testMacroMetadata() {
+    MacroMetadataBuilder builder;
+    builder.addMacro("vec", "macro vec(@items: expr...) { dec v = $crate::Vec::new(); return v; }");
+
+    BinaryWriter writer;
+    builder.serialize(writer);
+    auto bytes = writer.takeBuffer();
+
+    BinaryReader reader(bytes.data(), bytes.size());
+    uint32_t count = reader.readU32();
+    assert(count == 1);
+    
+    std::string name = reader.readString();
+    std::string src = reader.readString();
+    assert(name == "vec");
+    assert(src.find("$crate") != std::string::npos);
+}
+
+#include "mellis/MLib/GenericMetadataBuilder.h"
+void testGenericMetadata() {
+    GenericMetadataBuilder builder;
+    builder.addGeneric(fl::mlib::GenericKind::Function, "my_generic_fn", "fn my_generic_fn<T>(a: T) {}");
+    builder.addGeneric(fl::mlib::GenericKind::Impl, "std::Vec", "impl<T> std::Vec<T> {}");
+
+    BinaryWriter writer;
+    builder.serialize(writer);
+    auto bytes = writer.takeBuffer();
+
+    BinaryReader reader(bytes.data(), bytes.size());
+    uint32_t count = reader.readU32();
+    std::cout << "Count: " << count << std::endl;
+    assert(count == 2);
+    
+    // First
+    auto kind1 = reader.readU8();
+    std::cout << "Kind1: " << (int)kind1 << std::endl;
+    assert(kind1 == static_cast<uint8_t>(fl::mlib::GenericKind::Function));
+    std::string name1 = reader.readString();
+    std::cout << "Name1: " << name1 << std::endl;
+    assert(name1 == "my_generic_fn");
+    std::string src1 = reader.readString();
+    std::cout << "Src1: " << src1 << std::endl;
+    assert(src1 == "fn my_generic_fn<T>(a: T) {}");
+    
+    // Second
+    auto kind2 = reader.readU8();
+    std::cout << "Kind2: " << (int)kind2 << std::endl;
+    assert(kind2 == static_cast<uint8_t>(fl::mlib::GenericKind::Impl));
+    std::string name2 = reader.readString();
+    std::cout << "Name2: " << name2 << std::endl;
+    assert(name2 == "std::Vec");
+    std::string src2 = reader.readString();
+    std::cout << "Src2: " << src2 << std::endl;
+    assert(src2 == "impl<T> std::Vec<T> {}");
+    std::cout << "testGenericMetadata passed\n";
+}
+
 int main() {
     testBasicWriterReader();
     std::cout << "testBasicWriterReader passed\n";
@@ -387,11 +445,10 @@ int main() {
     std::cout << "testDebugSection passed\n";
 
     testDepGraph();
-    std::cout << "testDepGraph passed\n";
-
     testDocSection();
-    std::cout << "testDocSection passed\n";
-
-    std::cout << "All MLib Phase M2-M5 tests passed!\n";
+    testMacroMetadata();
+    testGenericMetadata();
+    
+    std::cout << "All MLib core tests passed!" << std::endl;
     return 0;
 }

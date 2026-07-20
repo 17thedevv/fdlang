@@ -432,10 +432,14 @@ bool TypeChecker::check(ASTNode* root) {
                     else if (name == "u32") evaluatedType = ctx.getPrimitive(BuiltinKind::U32);
                     else if (name == "i64") evaluatedType = ctx.getPrimitive(BuiltinKind::I64);
                     else if (name == "u64") evaluatedType = ctx.getPrimitive(BuiltinKind::U64);
+                    else if (name == "i128") evaluatedType = ctx.getPrimitive(BuiltinKind::I128);
+                    else if (name == "u128") evaluatedType = ctx.getPrimitive(BuiltinKind::U128);
                     else if (name == "i16") evaluatedType = ctx.getPrimitive(BuiltinKind::I16);
                     else if (name == "u16") evaluatedType = ctx.getPrimitive(BuiltinKind::U16);
                     else if (name == "i8") evaluatedType = ctx.getPrimitive(BuiltinKind::I8);
                     else if (name == "u8") evaluatedType = ctx.getPrimitive(BuiltinKind::U8);
+                    else if (name == "i4") evaluatedType = ctx.getPrimitive(BuiltinKind::I4);
+                    else if (name == "u4") evaluatedType = ctx.getPrimitive(BuiltinKind::U4);
                     else if (name == "f32") evaluatedType = ctx.getPrimitive(BuiltinKind::F32);
                     else if (name == "f64") evaluatedType = ctx.getPrimitive(BuiltinKind::F64);
                     else if (name == "bool") evaluatedType = ctx.getPrimitive(BuiltinKind::Bool);

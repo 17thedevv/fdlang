@@ -150,6 +150,9 @@ llvm::Type* LLVMIRGenerator::mapType(const Type* type) {
     
     if (auto* prim = dynamic_cast<const PrimitiveType*>(type)) {
         switch (prim->builtinKind) {
+            case BuiltinKind::I4:
+            case BuiltinKind::U4:
+                return llvm::Type::getIntNTy(context_, 4);
             case BuiltinKind::I8:
             case BuiltinKind::U8:
                 return llvm::Type::getInt8Ty(context_);
@@ -163,6 +166,9 @@ llvm::Type* LLVMIRGenerator::mapType(const Type* type) {
             case BuiltinKind::I64:
             case BuiltinKind::U64:
                 return llvm::Type::getInt64Ty(context_);
+            case BuiltinKind::I128:
+            case BuiltinKind::U128:
+                return llvm::Type::getInt128Ty(context_);
             case BuiltinKind::F32: return llvm::Type::getFloatTy(context_);
             case BuiltinKind::F64: return llvm::Type::getDoubleTy(context_);
             case BuiltinKind::Bool: return llvm::Type::getInt1Ty(context_);

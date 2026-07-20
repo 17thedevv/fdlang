@@ -32,8 +32,10 @@ private:
     bool match(TokenType type);
     Token consume(TokenType type, const char* errorMessage);
 
-    // Program & Items
+public:
     std::unique_ptr<ItemNode> parseDeclaration();
+
+private:
     std::unique_ptr<StmtNode> parseStatement();
 
     // Annotation parsing
@@ -42,7 +44,6 @@ private:
     // Declarations
     std::unique_ptr<DeclNode> parseVarDecl();
     std::unique_ptr<DeclNode> parseFunctionDecl(bool allowEmptyBody = false);
-    std::unique_ptr<DeclNode> parseMacroDecl();
     std::unique_ptr<DeclNode> parseStructDecl();
     std::unique_ptr<DeclNode> parseEnumDecl();
     std::unique_ptr<DeclNode> parseTraitDecl();
@@ -108,6 +109,7 @@ private:
 public:
     explicit Parser(Lexer& lexer, DiagnosticEngine& diag, class SourceManager* srcMgr = nullptr, FileID fid = kMainFileID);
     std::unique_ptr<ProgramNode> parse();
+    std::unique_ptr<DeclNode> parseMacroDecl();
 };
 
 } // namespace fl
