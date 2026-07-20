@@ -17,6 +17,9 @@ public:
     // Adds a directed dependency: `moduleName` depends on `dependencyName`.
     void addDependency(const std::string& moduleName, const std::string& dependencyName);
 
+    // Returns the direct dependencies of a module (empty if none or not found).
+    const std::vector<std::string>& getDependencies(const std::string& moduleName) const;
+
     // Performs a topological sort of the graph.
     // Returns the ordered list of modules (independent modules first).
     // If a cycle is detected, throws a std::runtime_error with the cycle path.

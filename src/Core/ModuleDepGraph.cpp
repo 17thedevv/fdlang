@@ -23,6 +23,14 @@ void ModuleDepGraph::addDependency(const std::string& moduleName, const std::str
     }
 }
 
+static const std::vector<std::string> kEmptyDeps;
+
+const std::vector<std::string>& ModuleDepGraph::getDependencies(const std::string& moduleName) const {
+    auto it = adjList.find(moduleName);
+    if (it != adjList.end()) return it->second;
+    return kEmptyDeps;
+}
+
 std::vector<std::string> ModuleDepGraph::topologicalSort() const {
     std::unordered_map<std::string, NodeState> states;
     for (const auto& pair : adjList) {

@@ -303,3 +303,18 @@ add_executable(test_workspace_builder
 target_include_directories(test_workspace_builder PRIVATE include)
 target_link_libraries(test_workspace_builder PRIVATE ${LLVM_LIBS})
 add_test(NAME WorkspaceBuilderTest COMMAND test_workspace_builder)
+
+add_executable(test_incremental_build
+    tests/test_incremental_build.cpp
+    ${CORE_SRC}
+    ${FRONTEND_SRC}
+    ${AST_SRC}
+    ${SUPPORT_SRC}
+    ${MIDDLEEND_SRC}
+    ${BACKEND_SRC}
+    ${MLIB_SRC}
+)
+target_include_directories(test_incremental_build PRIVATE include)
+target_link_libraries(test_incremental_build PRIVATE ${LLVM_LIBS})
+add_test(NAME IncrementalBuildTest COMMAND test_incremental_build)
+
