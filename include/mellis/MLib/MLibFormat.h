@@ -120,6 +120,29 @@ struct ImplEntry {
     uint32_t targetTypeID;
 };
 
+// ---------------------------------------------------------
+// Phase M3: Generic MVIR Packaging
+// ---------------------------------------------------------
+
+struct GenericFunctionIndex {
+    uint32_t functionID;
+    uint32_t compressedSize;
+    uint32_t uncompressedSize;
+    uint64_t offset;           // Absolute offset in the Generic MVIR Section
+    uint64_t mvirHash;
+    uint64_t constraintHash;
+    uint64_t signatureHash;
+};
+
+struct GenericPackageHeader {
+    uint32_t functionID;
+    uint16_t parameterCount;
+    uint16_t genericCount;
+    uint16_t constraintCount;
+    uint16_t flags;
+    uint32_t returnTypeID;
+};
+
 #pragma pack(pop)
 
 } // namespace mlib

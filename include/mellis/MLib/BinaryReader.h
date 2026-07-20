@@ -39,6 +39,9 @@ public:
     // Read a string (without prefix length, you must know length)
     std::string readStringRaw(size_t length);
 
+    // Read a length-prefixed string (matches writeString)
+    std::string readString();
+
     // Read a struct directly (must be packed)
     template<typename T>
     void readStruct(T& out) {

@@ -31,7 +31,10 @@ public:
     
     // Write string (without prefix length, just the bytes)
     void writeStringRaw(const std::string& str);
-    
+
+    // Write null-terminated string (length-prefix: uint32_t + bytes)
+    void writeString(const std::string& str);
+
     // Pad to a specific alignment
     void pad(size_t alignment);
 

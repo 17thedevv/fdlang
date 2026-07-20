@@ -105,6 +105,11 @@ std::string BinaryReader::readStringRaw(size_t length) {
     return str;
 }
 
+std::string BinaryReader::readString() {
+    uint32_t len = readU32();
+    return readStringRaw(static_cast<size_t>(len));
+}
+
 const uint8_t* BinaryReader::currentPtr() const {
     return data + offset;
 }

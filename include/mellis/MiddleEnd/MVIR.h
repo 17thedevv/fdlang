@@ -76,14 +76,29 @@ std::string toString(const Operand& op);
 // 3. Instructions
 // =============================================================================
 
+
+enum class Opcode : uint8_t {
+    // Memory
+    Local, Load, Store, Index, Field, Borrow, Cast, Drop, Sizeof, Alignof,
+    // ALU
+    Alu, Unary,
+    // Extract
+    Extract, Tag, Variant, MakeTraitObject, Call, VirtualCall, Await,
+    // Terminators
+    Jump, Branch, Switch, Ret
+};
+
 struct Instruction {
     virtual ~Instruction() = default;
     virtual std::string toString() const = 0;
+    virtual Opcode getOpcode() const = 0;
 };
+
 
 // ── Memory Instructions ──────────────────────────────────────────────────────
 
 struct LocalInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Local; }
     LocalId dest;
     const Type* type;
 
@@ -92,6 +107,7 @@ struct LocalInst : public Instruction {
 };
 
 struct LoadInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Load; }
     LocalId dest;
     const Type* type;
     Operand ptr;
@@ -101,6 +117,7 @@ struct LoadInst : public Instruction {
 };
 
 struct StoreInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Store; }
     const Type* type;
     Operand value;
     Operand ptr;
@@ -110,6 +127,7 @@ struct StoreInst : public Instruction {
 };
 
 struct IndexInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Index; }
     LocalId dest;
     const Type* type;
     Operand base;
@@ -120,6 +138,7 @@ struct IndexInst : public Instruction {
 };
 
 struct FieldInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Field; }
     LocalId dest;
     const Type* type;
     Operand base;
@@ -132,6 +151,7 @@ struct FieldInst : public Instruction {
 
 
 struct BorrowInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Borrow; }
     LocalId dest;
     bool isMutable;
     Operand base;
@@ -141,6 +161,7 @@ struct BorrowInst : public Instruction {
 };
 
 struct CastInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Cast; }
     LocalId dest;
     Operand value;
     const Type* targetType;
@@ -150,6 +171,7 @@ struct CastInst : public Instruction {
 };
 
 struct DropInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Drop; }
     Operand value;
     const Type* type;
 
@@ -158,6 +180,7 @@ struct DropInst : public Instruction {
 };
 
 struct SizeofInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Sizeof; }
     LocalId dest;
     const Type* targetType;
 
@@ -166,6 +189,7 @@ struct SizeofInst : public Instruction {
 };
 
 struct AlignofInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Alignof; }
     LocalId dest;
     const Type* targetType;
 
@@ -189,6 +213,7 @@ enum class UnaryOp {
 std::string formatUnaryOp(UnaryOp op);
 
 struct AluInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Alu; }
     LocalId dest;
     AluOp op;
     Operand left;
@@ -200,6 +225,7 @@ struct AluInst : public Instruction {
 };
 
 struct UnaryInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Unary; }
     LocalId dest;
     UnaryOp op;
     Operand operand;
@@ -212,6 +238,7 @@ struct UnaryInst : public Instruction {
 // ── Call Instruction ─────────────────────────────────────────────────────────
 
 struct ExtractInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Extract; }
     LocalId dest;
     Operand base;
     std::vector<const Type*> payloadTypes;
@@ -224,6 +251,7 @@ struct ExtractInst : public Instruction {
 };
 
 struct TagInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Tag; }
     LocalId dest;
     Operand base;
 
@@ -232,6 +260,7 @@ struct TagInst : public Instruction {
 };
 
 struct VariantInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Variant; }
     LocalId dest;
     const Type* enumType;
     size_t variantIndex;
@@ -243,6 +272,7 @@ struct VariantInst : public Instruction {
 };
 
 struct MakeTraitObjectInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::MakeTraitObject; }
     LocalId dest;
     Operand value;
     const Type* concreteType;
@@ -255,6 +285,7 @@ struct MakeTraitObjectInst : public Instruction {
 };
 
 struct CallInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Call; }
     std::optional<LocalId> dest;
     Operand func;
     std::vector<Operand> args;
@@ -266,6 +297,7 @@ struct CallInst : public Instruction {
 };
 
 struct VirtualCallInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::VirtualCall; }
     std::optional<LocalId> dest;
     Operand receiver;
     const Type* traitType;
@@ -279,6 +311,7 @@ struct VirtualCallInst : public Instruction {
 };
 
 struct AwaitInst : public Instruction {
+    Opcode getOpcode() const override { return Opcode::Await; }
     LocalId dest;
     Operand futureVal;
     const Type* innerType;
@@ -295,9 +328,11 @@ struct AwaitInst : public Instruction {
 struct Terminator {
     virtual ~Terminator() = default;
     virtual std::string toString() const = 0;
+    virtual Opcode getOpcode() const = 0;
 };
 
 struct JumpTerm : public Terminator {
+    Opcode getOpcode() const override { return Opcode::Jump; }
     LabelId target;
 
     explicit JumpTerm(LabelId t) : target(std::move(t)) {}
@@ -305,6 +340,7 @@ struct JumpTerm : public Terminator {
 };
 
 struct BranchTerm : public Terminator {
+    Opcode getOpcode() const override { return Opcode::Branch; }
     Operand condition;
     LabelId trueTarget;
     LabelId falseTarget;
@@ -315,6 +351,7 @@ struct BranchTerm : public Terminator {
 };
 
 struct RetTerm : public Terminator {
+    Opcode getOpcode() const override { return Opcode::Ret; }
     std::optional<Operand> value;
 
     explicit RetTerm(std::optional<Operand> v = std::nullopt) : value(std::move(v)) {}
@@ -322,6 +359,7 @@ struct RetTerm : public Terminator {
 };
 
 struct SwitchTerm : public Terminator {
+    Opcode getOpcode() const override { return Opcode::Switch; }
     Operand condition;
     std::vector<std::pair<Number, LabelId>> cases;
     LabelId defaultTarget;
@@ -354,10 +392,11 @@ struct Param {
 struct Function {
     GlobalId name;
     std::vector<Param> params;
-    const Type* returnType;
+    const Type* returnType = nullptr;
     std::vector<std::unique_ptr<BasicBlock>> blocks;
     bool isAsync = false;
 
+    Function() = default;
     Function(GlobalId n, const Type* ret) : name(std::move(n)), returnType(ret) {}
     std::string toString() const;
 };

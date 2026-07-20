@@ -177,6 +177,9 @@ add_test(NAME TypeCheckerTest COMMAND test_typechecker)
 add_executable(test_mlib
     tests/test_mlib.cpp
     ${MLIB_SRC}
+    src/MiddleEnd/MVIR.cpp
+    src/Core/SourceManager.cpp
+    src/Support/Diagnostic.cpp
 )
 target_include_directories(test_mlib PRIVATE include)
 add_test(NAME MLibTest COMMAND test_mlib)

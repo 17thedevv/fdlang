@@ -69,6 +69,11 @@ void BinaryWriter::writeStringRaw(const std::string& str) {
     buffer.insert(buffer.end(), str.begin(), str.end());
 }
 
+void BinaryWriter::writeString(const std::string& str) {
+    writeU32(static_cast<uint32_t>(str.size()));
+    buffer.insert(buffer.end(), str.begin(), str.end());
+}
+
 void BinaryWriter::pad(size_t alignment) {
     size_t remainder = buffer.size() % alignment;
     if (remainder != 0) {

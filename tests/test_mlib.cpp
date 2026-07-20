@@ -6,10 +6,14 @@
 #include "mellis/MLib/StringTableBuilder.h"
 #include "mellis/MLib/ManifestBuilder.h"
 #include "mellis/MLib/MetadataBuilder.h"
+#include "mellis/MLib/GenericSerializer.h"
+#include "mellis/MLib/GenericDeserializer.h"
+#include "mellis/MiddleEnd/MVIR.h"
 
 #include <iostream>
 #include <cassert>
 #include <cstring>
+#include <unordered_map>
 
 using namespace fl::mlib;
 
@@ -146,6 +150,72 @@ void testMetadataArena() {
     assert(funcEntry.namespaceID == nsID);
 }
 
+void testGenericSectionIndex() {
+    using namespace fl::mvir;
+    
+    // Create a mock Generic Function (max<T>)
+    Function func;
+    func.name = GlobalId{"max"};
+    
+    auto bb = std::make_unique<BasicBlock>(LabelId{"bb0"});
+    
+    bb->instructions.push_back(std::make_unique<AluInst>(
+        LocalId{"%res"}, AluOp::Add, LocalId{"%a"}, LocalId{"%b"}
+    ));
+    
+    bb->terminator = std::make_unique<RetTerm>(LocalId{"%res"});
+    
+    func.blocks.push_back(std::move(bb));
+    
+    GenericSerializer serializer;
+    std::vector<uint32_t> genericIDs = {100};
+    std::vector<uint32_t> constraintIDs = {200};
+    
+    // Serialize package
+    auto pkgBytes = serializer.serializePackage(17, genericIDs, constraintIDs, 50, func);
+    
+    // Manually construct the whole section
+    BinaryWriter sectionWriter;
+    sectionWriter.writeU32(1); // Version 1
+    sectionWriter.writeU32(1); // Function Count
+    
+    // Index Table
+    GenericFunctionIndex idx;
+    idx.functionID = 17;
+    idx.compressedSize = pkgBytes.size();
+    idx.uncompressedSize = pkgBytes.size();
+    // Calculate offset: Version(4) + Count(4) + IndexEntry(48)
+    idx.offset = 4 + 4 + sizeof(GenericFunctionIndex);
+    idx.mvirHash = 0xDEADBEEF12345678ULL;
+    idx.constraintHash = 0;
+    idx.signatureHash = 0;
+    
+    sectionWriter.writeStruct(idx);
+    
+    // Payload
+    sectionWriter.writeBytes(pkgBytes.data(), pkgBytes.size());
+    
+    auto sectionBytes = sectionWriter.takeBuffer();
+    
+    // Test Deserialization & Lazy Loading
+    GenericDeserializer deserializer(sectionBytes.data(), sectionBytes.size());
+    deserializer.parseIndexTable();
+    
+    // Try loading a non-existent function
+    auto nullFunc = deserializer.loadFunction(99);
+    assert(nullFunc == nullptr);
+    
+    // Load the correct function
+    auto loadedFunc = deserializer.loadFunction(17);
+    assert(loadedFunc != nullptr);
+    assert(loadedFunc->blocks.size() == 1);
+    assert(loadedFunc->blocks[0]->label.name == "bb0");
+    assert(loadedFunc->blocks[0]->instructions.size() == 1);
+    
+    assert(loadedFunc->blocks[0]->instructions[0]->getOpcode() == Opcode::Alu);
+    assert(loadedFunc->blocks[0]->terminator->getOpcode() == Opcode::Ret);
+}
+
 int main() {
     testBasicWriterReader();
     std::cout << "testBasicWriterReader passed\n";
@@ -159,6 +229,9 @@ int main() {
     testMetadataArena();
     std::cout << "testMetadataArena passed\n";
 
-    std::cout << "All MLib Phase M2 tests passed!\n";
+    testGenericSectionIndex();
+    std::cout << "testGenericSectionIndex passed\n";
+
+    std::cout << "All MLib Phase M2 & M3 tests passed!\n";
     return 0;
 }
