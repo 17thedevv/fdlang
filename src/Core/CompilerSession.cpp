@@ -23,6 +23,7 @@
 #include "mellis/BackEnd/ExecutableGenerator.h"
 #include "mellis/Support/LLDLinker.h"
 #include "mellis/Support/ConsoleDiagnosticConsumer.h"
+#include "mellis/Support/OSUtils.h"
 #include "mellis/AST/ProgramNode.h"
 
 namespace fl {
@@ -53,12 +54,21 @@ void CompilerSession::initDefaultLibraryPaths() {
     //   2. ../lib/          — một tầng lên (dev: run từ trong subdir)
     std::error_code ec;
     fs::path cwd = fs::current_path(ec);
-    if (ec) return;
 
-    std::vector<fs::path> candidates = {
-        cwd / "lib",        // ./lib/
-        cwd / "../lib",     // ../lib/
-    };
+    // Get executable path
+    std::string exePathStr = OSUtils::getExecutablePath();
+    fs::path exeDir = fs::path(exePathStr).parent_path();
+
+    std::vector<fs::path> candidates;
+    if (!ec) {
+        candidates.push_back(cwd / "lib");        // ./lib/ (Project local)
+        candidates.push_back(cwd / "../lib");     // ../lib/
+    }
+    
+    if (!exePathStr.empty()) {
+        candidates.push_back(exeDir / "lib");             // <exe_dir>/lib/
+        candidates.push_back(exeDir / "../lib");          // <exe_dir>/../lib/
+    }
 
     for (auto& p : candidates) {
         std::error_code ec2;
