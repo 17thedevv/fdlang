@@ -154,6 +154,42 @@ struct ObjectFunctionIndex {
     uint64_t objectHash;       // XXHash64 of the raw object bytes (for incremental linking)
 };
 
+// ---------------------------------------------------------
+// Phase M5: Debug Section
+// ---------------------------------------------------------
+
+// Line mapping entry: maps a MVIR instruction (by index) to a source location.
+struct DebugLineEntry {
+    uint32_t functionID;
+    uint32_t instructionIndex; // Flat index within the function's basic blocks
+    uint32_t fileStringID;     // StringID of the source file path
+    uint32_t line;
+    uint32_t column;
+};
+
+// ---------------------------------------------------------
+// Phase M5: Function Dependency Graph
+// ---------------------------------------------------------
+
+// One edge in the function call graph: callerID calls calleeID.
+// Stored as a flat list of directed edges. Compiler reconstructs the
+// full graph and computes reverse-reachability for incremental builds.
+struct DepEdge {
+    uint32_t callerID;
+    uint32_t calleeID;
+};
+
+// ---------------------------------------------------------
+// Phase M5: Documentation Section
+// ---------------------------------------------------------
+
+// One doc-comment record: functionID / typeID + string offset.
+// Used by IDE for hover/tooltip without loading MVIR at all.
+struct DocEntry {
+    uint32_t symbolID;         // FunctionID or TypeID
+    uint32_t docStringID;      // StringID of the doc comment text
+};
+
 #pragma pack(pop)
 
 } // namespace mlib

@@ -10,6 +10,9 @@
 #include "mellis/MLib/GenericDeserializer.h"
 #include "mellis/MLib/ObjectCodeBuilder.h"
 #include "mellis/MLib/ObjectCodeExtractor.h"
+#include "mellis/MLib/DebugInfoBuilder.h"
+#include "mellis/MLib/DepGraphBuilder.h"
+#include "mellis/MLib/DocSectionBuilder.h"
 #include "mellis/MiddleEnd/MVIR.h"
 
 #include <iostream>
@@ -271,6 +274,96 @@ void testObjectCodeSection() {
     assert(all.back() == 0xC3);
 }
 
+void testDebugSection() {
+    DebugInfoBuilder builder;
+    // Function 5, instruction 0: src/main.mel line 10, col 4
+    builder.addLineEntry(5, 0, /*fileStringID=*/100, 10, 4);
+    // Function 5, instruction 1: same file, line 11, col 8
+    builder.addLineEntry(5, 1, 100, 11, 8);
+    // Function 7, instruction 0: different function
+    builder.addLineEntry(7, 0, 101, 42, 1);
+
+    assert(builder.getEntryCount() == 3);
+
+    BinaryWriter writer;
+    builder.serialize(writer);
+    auto bytes = writer.takeBuffer();
+
+    DebugInfoReader reader(bytes.data(), bytes.size());
+    reader.parse();
+    assert(reader.getEntryCount() == 3);
+
+    auto loc = reader.lookup(5, 1);
+    assert(loc.has_value());
+    assert(loc->line == 11);
+    assert(loc->column == 8);
+    assert(loc->fileStringID == 100);
+
+    auto missing = reader.lookup(5, 99);
+    assert(!missing.has_value());
+}
+
+void testDepGraph() {
+    DepGraphBuilder builder;
+    // A(1) calls B(2), B(2) calls C(3), D(4) calls C(3)
+    builder.addEdge(1, 2); // A -> B
+    builder.addEdge(2, 3); // B -> C
+    builder.addEdge(4, 3); // D -> C
+
+    assert(builder.getEdgeCount() == 3);
+
+    BinaryWriter writer;
+    builder.serialize(writer);
+    auto bytes = writer.takeBuffer();
+
+    DepGraphReader reader(bytes.data(), bytes.size());
+    reader.parse();
+    assert(reader.getEdgeCount() == 3);
+
+    // When C(3) changes, dependents are B(2), A(1), and D(4)
+    auto dependents = reader.getDependents(3);
+    assert(dependents.count(2) == 1); // B depends on C
+    assert(dependents.count(1) == 1); // A depends on C transitively via B
+    assert(dependents.count(4) == 1); // D directly depends on C
+    assert(dependents.count(3) == 0); // C itself is not in the set
+    assert(dependents.size() == 3);
+
+    // When B(2) changes, only A is affected
+    auto bDeps = reader.getDependents(2);
+    assert(bDeps.count(1) == 1);
+    assert(bDeps.count(4) == 0);
+}
+
+void testDocSection() {
+    StringTableBuilder stringTable;
+    DocSectionBuilder builder(stringTable);
+
+    builder.addDoc(10, "Computes the maximum of two values.");
+    builder.addDoc(20, "A generic Vec container.");
+    builder.addDoc(10, "Overloaded doc."); // same ID — both stored, reader returns last
+
+    BinaryWriter docWriter;
+    builder.serialize(docWriter);
+    auto docBytes = docWriter.takeBuffer();
+
+    BinaryWriter strWriter;
+    stringTable.serialize(strWriter);
+    auto strBytes = strWriter.takeBuffer();
+
+    DocSectionReader reader(
+        docBytes.data(), docBytes.size(),
+        strBytes.data(), strBytes.size()
+    );
+    reader.parse();
+
+    auto doc20 = reader.getDoc(20);
+    assert(doc20.has_value());
+    assert(*doc20 == "A generic Vec container.");
+
+    auto missing = reader.getDoc(99);
+    assert(!missing.has_value());
+}
+
 int main() {
     testBasicWriterReader();
     std::cout << "testBasicWriterReader passed\n";
@@ -290,6 +383,15 @@ int main() {
     testObjectCodeSection();
     std::cout << "testObjectCodeSection passed\n";
 
-    std::cout << "All MLib Phase M2, M3 & M4 tests passed!\n";
+    testDebugSection();
+    std::cout << "testDebugSection passed\n";
+
+    testDepGraph();
+    std::cout << "testDepGraph passed\n";
+
+    testDocSection();
+    std::cout << "testDocSection passed\n";
+
+    std::cout << "All MLib Phase M2-M5 tests passed!\n";
     return 0;
 }
