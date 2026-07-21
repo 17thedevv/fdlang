@@ -583,6 +583,9 @@ public:
         for (auto& stmt : node.body) {
             stmt->accept(static_cast<ASTVisitor&>(*this));
         }
+        if (node.tailExpr) {
+            node.tailExpr->accept(static_cast<ASTVisitor&>(*this));
+        }
         sm.exitScope();
     }
     
@@ -870,27 +873,22 @@ bool Resolver::resolve(ASTNode* root) {
     }
     sm.exitScope();
     
-    std::cout << "[DEBUG] Entering resolve\n";
     sm.enterExistingScope(sm.table.globalScopeId());
     
     DeclarationVisitor pass1(sm);
-    std::cout << "[DEBUG] pass1\n";
     root->accept(pass1);
     
     if (diag_.hasErrors()) { sm.exitScope(); return false; }
 
     UseResolutionVisitor pass1_5(sm);
-    std::cout << "[DEBUG] pass1_5\n";
     root->accept(pass1_5);
     
     if (diag_.hasErrors()) { sm.exitScope(); return false; }
     
     ResolutionVisitor pass2(sm, diag_);
-    std::cout << "[DEBUG] pass2\n";
     root->accept(pass2);
     
     sm.exitScope();
-    std::cout << "[DEBUG] Exiting resolve\n";
     
     return !diag_.hasErrors();
 }

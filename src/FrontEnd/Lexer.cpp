@@ -138,7 +138,6 @@ static const std::unordered_map<std::string_view, TokenType> kKeywords = {
     {"dyn", TokenType::KW_DYN},
     {"self", TokenType::KW_SELF_VAL},
     {"Self", TokenType::KW_SELF_TYP},
-    {"print", TokenType::KW_PRINT},
 };
 
 static const std::unordered_map<std::string_view, BuiltinKind> kBuiltinTypes = {

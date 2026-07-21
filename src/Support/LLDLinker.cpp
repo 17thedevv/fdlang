@@ -45,10 +45,10 @@ bool LLDLinker::link(const std::string& objFile,
     command += " /DEFAULTLIB:legacy_stdio_definitions";
 
     if (!verbose_) {
-        std::cout << "Running command: " << command << "\n";
+        // std::cout << "Running command: " << command << "\n";
         std::cout.flush();
     } else {
-        std::cout << "Running command: " << command << "\n";
+        // std::cout << "Running command: " << command << "\n";
         std::cout.flush();
     }
 

@@ -277,15 +277,14 @@ std::unique_ptr<DeclNode> Parser::parseModDecl() {
             diag.error(node->loc, "Out-of-line modules not supported without SourceManager");
         }
     } else {
-        consume(TokenType::L_BRACE, "Expected '{' for module body or ';' for out-of-line module");
+        consume(TokenType::L_BRACE, "Expected '{' or ';' after module name");
         while (!check(TokenType::R_BRACE) && !check(TokenType::END_OF_FILE)) {
             auto item = parseDeclaration();
             if (auto decl = dynamic_cast<DeclNode*>(item.get())) {
                 item.release();
                 node->decls.push_back(std::unique_ptr<DeclNode>(decl));
             } else {
-                diag.error(SourceLocation::fromLineCol(fileId, current.line, current.col, current.byteOffset), "Expected declaration inside module");
-                throw ParseError();
+                diag.error(SourceLocation::fromLineCol(fileId, current.line, current.col, current.byteOffset), "Expected a declaration inside module");
             }
         }
         consume(TokenType::R_BRACE, "Expected '}' after module body");
@@ -326,15 +325,9 @@ std::unique_ptr<DeclNode> Parser::parseExternDecl() {
 
 
 std::unique_ptr<ItemNode> Parser::parseDeclaration() {
-    std::cout << "[DEBUG] parseDecl current.type=" << (int)current.type << " text=" << std::string(current.text) << " byteOffset=" << current.byteOffset << "\n";
     auto annots = parseAnnotations();
     
     bool isExported = false;
-    if (match(TokenType::KW_EXPORT)) {
-        isExported = true;
-    }
-    
-    std::unique_ptr<DeclNode> decl = nullptr;
     
     bool isFunction = false;
     if (current.type == TokenType::KW_FN || current.type == TokenType::KW_ASYNC) {
@@ -348,13 +341,20 @@ std::unique_ptr<ItemNode> Parser::parseDeclaration() {
             isFunction = true;
         }
     }
-
+    std::unique_ptr<DeclNode> decl;
+    
+    // Check export and extern modifiers first
+    bool isExtern = false;
+    if (match(TokenType::KW_EXPORT)) {
+        isExported = true;
+    } else if (match(TokenType::KW_EXTERN)) {
+        isExtern = true;
+    }
+    
     if (current.type == TokenType::KW_DEC || current.type == TokenType::KW_CONST) {
         decl = parseVarDecl();
-    } else if (current.type == TokenType::KW_MACRO) {
-        decl = parseMacroDecl();
-    } else if (isFunction) {
-        decl = parseFunctionDecl();
+    } else if (current.type == TokenType::KW_FN) {
+        decl = parseFunctionDecl(isExtern);
     } else if (current.type == TokenType::KW_STRUCT) {
         decl = parseStructDecl();
     } else if (current.type == TokenType::KW_ENUM) {
@@ -369,11 +369,9 @@ std::unique_ptr<ItemNode> Parser::parseDeclaration() {
         decl = parseTypeAliasDecl();
     } else if (current.type == TokenType::KW_MOD) {
         decl = parseModDecl();
-    } else if (current.type == TokenType::KW_EXTERN) {
-        decl = parseExternDecl();
     } else {
-        if (!annots.empty() || isExported) {
-            diag.error(SourceLocation::fromLineCol(kMainFileID, current.line, current.col, current.byteOffset), "Annotations or export not attached to a declaration");
+        if (!annots.empty() || isExported || isExtern) {
+            diag.error(SourceLocation::fromLineCol(kMainFileID, current.line, current.col, current.byteOffset), "Annotations or modifiers not attached to a declaration");
             throw ParseError();
         }
         return parseStatement();
@@ -382,6 +380,19 @@ std::unique_ptr<ItemNode> Parser::parseDeclaration() {
     if (decl) {
         decl->isExported = isExported;
         decl->annotations = std::move(annots);
+        
+        if (isExtern) {
+            auto extNode = std::make_unique<ExternDeclNode>();
+            extNode->loc = decl->loc;
+            extNode->isExported = decl->isExported;
+            if (auto funcDecl = dynamic_cast<FunctionDeclNode*>(decl.get())) {
+                decl.release();
+                extNode->func.reset(funcDecl);
+                decl = std::move(extNode);
+            } else {
+                diag.error(decl->loc, "'extern' is only supported for functions");
+            }
+        }
     }
     return decl;
 }
@@ -413,7 +424,7 @@ std::unique_ptr<DeclNode> Parser::parseFunctionDecl(bool allowEmptyBody) {
     if (match(TokenType::KW_COMPTIME)) funcDecl->isComptime = true;
     if (match(TokenType::KW_ASYNC)) funcDecl->isAsync = true;
     if (match(TokenType::KW_UNSAFE)) funcDecl->isUnsafe = true;
-
+    
     consume(TokenType::KW_FN, "Expected 'fn'");
     Token nameTok = consume(TokenType::IDENTIFIER, "Expected function name");
     funcDecl->name = nameTok.text;
@@ -423,6 +434,10 @@ std::unique_ptr<DeclNode> Parser::parseFunctionDecl(bool allowEmptyBody) {
     consume(TokenType::L_PAREN, "Expected '(' after function name");
     if (!check(TokenType::R_PAREN)) {
         do {
+            if (match(TokenType::DOT_DOT_DOT)) {
+                funcDecl->isVariadic = true;
+                break;
+            }
             auto param = std::make_unique<ParamDeclNode>();
             param->loc = SourceLocation::fromLineCol(kMainFileID, current.line, current.col, current.byteOffset);
             if (match(TokenType::DOT_DOT_DOT)) {
@@ -851,7 +866,14 @@ std::unique_ptr<TypeNode> Parser::parseType() {
     if (match(TokenType::MULTIPLY)) {
         auto node = std::make_unique<PointerTypeNode>();
         node->loc = SourceLocation::fromLineCol(kMainFileID, current.line, current.col, current.byteOffset);
-        node->isMutable = match(TokenType::KW_RW);
+        
+        node->isMutable = false; // default is immutable
+        if (match(TokenType::KW_RW)) {
+            node->isMutable = true;
+        } else if (match(TokenType::KW_CONST)) {
+            node->isMutable = false;
+        }
+        
         node->inner = parseType();
         return node;
     }

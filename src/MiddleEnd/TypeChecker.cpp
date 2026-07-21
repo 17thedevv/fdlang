@@ -177,6 +177,7 @@ bool TypeChecker::check(ASTNode* root) {
                   retType = ctx.create<FutureType>(retType);
               }
               typeTable[node.symbolId] = ctx.getFunctionType(std::move(paramNames), std::move(paramTypes), retType, false, node.isVariadic);
+
             
             // Register methods from generic bounds
             for (auto& gp : node.genericParams) {
@@ -843,6 +844,7 @@ bool TypeChecker::check(ASTNode* root) {
                 const Type* baseType = typeTable[node.resolvedSymbol];
                 
                 const EnumType* enumTy = dynamic_cast<const EnumType*>(baseType);
+
                 if (!enumTy) {
                     if (auto* fnTy = dynamic_cast<const FunctionType*>(baseType)) {
                         enumTy = dynamic_cast<const EnumType*>(fnTy->returnType);
@@ -1332,14 +1334,19 @@ bool TypeChecker::check(ASTNode* root) {
         }
 
         void solve(std::vector<Constraint> constraints) {
+            std::vector<bool> solved(constraints.size(), false);
             bool changed = true;
             int iterations = 0;
             while (changed && iterations++ < 10) {
                 changed = false;
-                for (const auto& c : constraints) {
+                for (size_t i = 0; i < constraints.size(); ++i) {
+                    if (solved[i]) continue;
+                    const auto& c = constraints[i];
                     if (c.kind == ConstraintKind::Equality) {
-                        printf("Solving constraint: %s == %s\n", c.expected->toString().c_str(), c.actual->toString().c_str());
-                        if (unify(c.expected, c.actual, c.loc)) changed = true;
+                        // printf("Solving constraint: %s == %s\n", c.expected->toString().c_str(), c.actual->toString().c_str());
+                        unify(c.expected, c.actual, c.loc);
+                        solved[i] = true;
+                        changed = true;
                     } else if (c.kind == ConstraintKind::Field) {
                         const Type* objType = ctx.unificationTable.deepResolve(c.expected, ctx);
                         if (auto* ptr = dynamic_cast<const PointerType*>(objType)) objType = ptr->pointee;
@@ -1359,7 +1366,9 @@ bool TypeChecker::check(ASTNode* root) {
                                                 }
                                             }
                                             fTy = ctx.substitute(fTy, subst);
-                                            if (unify(c.actual, fTy, c.loc)) changed = true;
+                                            unify(c.actual, fTy, c.loc);
+                                            solved[i] = true;
+                                            changed = true;
                                         }
                                     }
                                 }
@@ -1385,11 +1394,12 @@ bool TypeChecker::check(ASTNode* root) {
                                 const Type* expectedFnType = ctx.getFunctionType(std::move(callArgNames), std::move(callArgTypes), c.actual, true /* isCallSite */);
                                 
                                 // 2. Unify the synthetic call site with the method's definition signature
-                                if (unify(expectedFnType, mInfo.type, c.loc)) {
-                                    changed = true;
-                                }
+                                unify(expectedFnType, mInfo.type, c.loc);
+                                solved[i] = true;
+                                changed = true;
                             } else {
                                 diag.error(c.loc, "No method named '" + c.name + "' found for type '" + objType->toString() + "'");
+                                solved[i] = true;
                                 changed = true; // Error reported, don't loop forever
                             }
                         }
@@ -1400,11 +1410,16 @@ bool TypeChecker::check(ASTNode* root) {
                         if (t1->getKind() == TypeKind::InferenceVar) {
                             // Wait for iterable to be inferred
                         } else if (auto* arr = dynamic_cast<const ArrayType*>(t1)) {
-                            if (unify(arr->elementType, t2, c.loc)) changed = true;
+                            unify(arr->elementType, t2, c.loc);
+                            solved[i] = true;
+                            changed = true;
                         } else if (auto* sl = dynamic_cast<const SliceType*>(t1)) {
-                            if (unify(sl->elementType, t2, c.loc)) changed = true;
+                            unify(sl->elementType, t2, c.loc);
+                            solved[i] = true;
+                            changed = true;
                         } else if (t1->getKind() != TypeKind::Unknown) {
                             diag.error(c.loc, "Type '" + t1->toString() + "' is not iterable");
+                            solved[i] = true;
                         }
                     } else if (c.kind == ConstraintKind::EnumVariantPattern) {
                         // Dead code, now handled directly in PatternConstraintVisitor

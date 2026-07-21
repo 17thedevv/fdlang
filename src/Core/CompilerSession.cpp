@@ -1,4 +1,6 @@
 #include "mellis/Core/CompilerSession.h"
+#include "mellis/MLib/MLibGenerator.h"
+#include "mellis/Support/OSUtils.h"
 #include <iostream>
 #include <cassert>
 #include <filesystem>
@@ -61,6 +63,7 @@ void CompilerSession::initDefaultLibraryPaths() {
 
     std::vector<fs::path> candidates;
     if (!ec) {
+        candidates.push_back(cwd);                // ./ (Current working directory)
         candidates.push_back(cwd / "lib");        // ./lib/ (Project local)
         candidates.push_back(cwd / "../lib");     // ../lib/
     }
@@ -84,12 +87,27 @@ void CompilerSession::initDefaultLibraryPaths() {
         }
     }
 }
-
-bool CompilerSession::compile(const std::string& filepath, bool verbose, int optLevel) {
+bool CompilerSession::compile(const std::string& filepath, bool verbose, int optLevel, bool emitLib) {
     FileID mainFileId = sourceManager_.loadFile(filepath);
     if (mainFileId == SourceManager::kInvalidFileID) {
         diag_.flush();
         return false;
+    }
+
+    // Thêm thư mục chứa file main vào danh sách tìm kiếm thư viện
+    std::error_code ec;
+    auto mainFileDir = std::filesystem::path(filepath).parent_path();
+    if (mainFileDir.empty()) {
+        mainFileDir = ".";
+    }
+    auto canonicalMainDir = std::filesystem::canonical(mainFileDir, ec);
+    if (!ec) {
+        std::string s = canonicalMainDir.string();
+        bool found = false;
+        for (auto& existing : libraryPaths_) {
+            if (existing == s) { found = true; break; }
+        }
+        if (!found) libraryPaths_.push_back(s);
     }
 
     if (verbose) {
@@ -273,6 +291,28 @@ bool CompilerSession::compile(const std::string& filepath, bool verbose, int opt
         std::cout << "\n=== LLVM IR ===\n";
         llvmModule.print(llvm::outs(), nullptr);
         llvm::outs().flush();
+    }
+
+    if (emitLib) {
+        if (verbose) std::cout << "[9] Tao file thu vien (MLibGenerator)..." << std::endl;
+        
+        std::string outName = filepath;
+        size_t lastDot = outName.find_last_of('.');
+        if (lastDot != std::string::npos) {
+            outName = outName.substr(0, lastDot);
+        }
+        outName += ".mlib";
+
+        fl::MLibGenerator mlibGen(diag_, symbolTable_, typeContext_, macroRegistry);
+        bool mlibOk = mlibGen.generate(&llvmModule, outName);
+        if (!mlibOk) {
+            diag_.error(SourceLocation::invalid(), "Tao file thu vien that bai.");
+            diag_.flush();
+            return false;
+        }
+
+        if (verbose) std::cout << "[10] Thanh cong! File dau ra: " << outName << std::endl;
+        return true;
     }
 
     // ── Phase 9: LLD Linker / Executable Generation ──────────────────────────

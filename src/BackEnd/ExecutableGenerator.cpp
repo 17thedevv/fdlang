@@ -117,13 +117,13 @@ bool ExecutableGenerator::generateExecutable(llvm::Module* llvmModule,
     PB.registerLoopAnalyses(LAM);
     PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
-    std::cout << "[ExeGen] Building PassManager..." << std::endl;
+    // std::cout << "[ExeGen] Building PassManager..." << std::endl;
     llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
-    std::cout << "[ExeGen] Running Optimization Passes..." << std::endl;
+    // std::cout << "[ExeGen] Running Optimization Passes..." << std::endl;
     MPM.run(*llvmModule, MAM);
-    std::cout << "[ExeGen] Optimizations complete." << std::endl;
-    llvmModule->print(llvm::outs(), nullptr);
-    llvm::outs().flush();
+    // std::cout << "[ExeGen] Optimizations complete." << std::endl;
+    // llvmModule->print(llvm::outs(), nullptr);
+    // llvm::outs().flush();
 
     // 2. Emit Object File
     std::string objPath = outputPath + ".obj";
@@ -138,23 +138,23 @@ bool ExecutableGenerator::generateExecutable(llvm::Module* llvmModule,
     llvm::legacy::PassManager pass;
     auto fileType = llvm::CodeGenFileType::ObjectFile;
 
-    std::cout << "[ExeGen] Adding passes to emit file..." << std::endl;
+    // std::cout << "[ExeGen] Adding passes to emit file..." << std::endl;
     if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, fileType)) {
         diag_.error(SourceLocation{}, "TargetMachine khong the emit kieu file nay.");
         return false;
     }
 
-    std::cout << "[ExeGen] Running CodeGen Passes..." << std::endl;
+    // std::cout << "[ExeGen] Running CodeGen Passes..." << std::endl;
     pass.run(*llvmModule);
     dest.flush();
-    std::cout << "[ExeGen] Object file emitted." << std::endl;
+    // std::cout << "[ExeGen] Object file emitted." << std::endl;
 
     // 3. Link Object File into Executable
     std::string exePath = OSUtils::getExecutablePath();
-    std::string libDir = OSUtils::getParentDirectory(exePath, 1) + "\\lib"; // Parent of bin is mellis root, then lib/
+    std::string libDir = OSUtils::getParentDirectory(exePath, 2) + "\\lib"; // Parent of bin is mellis root, then lib/
     std::string portableRt = libDir + "\\mellis_rt.lib";
     
-    std::string rtLibPath = "build\\Release\\mellis_rt.lib"; // Fallback to local dev build
+    std::string rtLibPath = OSUtils::getParentDirectory(exePath, 2) + "\\build\\Release\\mellis_rt.lib"; // Fallback to local dev build (absolute)
     if (OSUtils::fileExists(portableRt)) {
         rtLibPath = portableRt;
     }
@@ -171,7 +171,7 @@ bool ExecutableGenerator::generateExecutable(llvm::Module* llvmModule,
             auto extPath = extractMLibObject(mlibPath, objDir.string(), diag_);
             if (extPath) {
                 libs.push_back(*extPath);
-                std::cout << "[ExeGen] Extracted object code from " << mlibPath << " -> " << *extPath << std::endl;
+                // std::cout << "[ExeGen] Extracted object code from " << mlibPath << " -> " << *extPath << std::endl;
             }
         }
     }

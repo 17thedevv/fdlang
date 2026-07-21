@@ -27,7 +27,7 @@ bool ClangLinker::link(const std::string& objFile,
         // Suppress clang and lld output
         command += " > NUL 2>&1";
     } else {
-        std::cout << "Running command: " << command << "\n";
+        // std::cout << "Running command: " << command << "\n";
         std::cout.flush();
     }
 

@@ -74,12 +74,12 @@ bool LLVMIRGenerator::generate(const mvir::Module* mvirModule) {
     }
 
     // Translate instructions
-    std::cout << "[LLVMGen] Start generating..." << std::endl;
+    // std::cout << "[LLVMGen] Start generating..." << std::endl;
     for (const auto& func : mvirModule->functions) {
         createFunctionStructure(func.get());
         emitFunctionBody(func.get());
     }
-    std::cout << "[LLVMGen] Functions built." << std::endl;
+    // std::cout << "[LLVMGen] Functions built." << std::endl;
 
     if (hasAsyncMain) {
         // Generate a synchronous C main that calls block_on
@@ -134,7 +134,7 @@ bool LLVMIRGenerator::generate(const mvir::Module* mvirModule) {
     builder_.CreateCall(coroResumeIntrin, {resumeFn->getArg(0)});
     builder_.CreateRetVoid();
 
-    std::cout << "[LLVMGen] Coroutines built." << std::endl;
+    // std::cout << "[LLVMGen] Coroutines built." << std::endl;
     std::error_code EC;
     llvm::raw_fd_ostream os("llvm.ir", EC);
     if (!EC) {
@@ -278,7 +278,7 @@ void LLVMIRGenerator::createFunctionStructure(const mvir::Function* func) {
 }
 
 void LLVMIRGenerator::emitFunctionBody(const mvir::Function* func) {
-    std::cout << "[LLVMGen] Generating body for: " << func->name.name << std::endl;
+    // std::cout << "[LLVMGen] Generating body for: " << func->name.name << std::endl;
     auto it = globalValues_.find(func->name.name);
     if (it == globalValues_.end()) {
         std::cerr << "[LLVMGen] Function not found in globalValues: " << func->name.name << std::endl;

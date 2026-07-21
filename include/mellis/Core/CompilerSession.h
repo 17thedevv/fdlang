@@ -16,9 +16,9 @@ public:
     CompilerSession();
     ~CompilerSession();
 
-    /// Biên dịch file đầu vào thành Executable.
+    /// Biên dịch file đầu vào thành Executable hoặc MLib.
     /// Trả về true nếu thành công, false nếu có lỗi.
-    bool compile(const std::string& filepath, bool verbose = false, int optLevel = 0);
+    bool compile(const std::string& filepath, bool verbose = false, int optLevel = 0, bool emitLib = false);
 
     /// Set the library search paths for external .mlib modules.
     /// Call before compile().

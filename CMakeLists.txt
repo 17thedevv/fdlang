@@ -31,6 +31,7 @@ include_directories(include)
 
 # ── Source files ──────────────────────────────────────────────────────────────
 file(GLOB MLIB_SRC "src/MLib/*.cpp")
+file(GLOB LSP_SRC "src/LSP/*.cpp")
 
 # Gom Frontend sources (parser frozen — no changes)
 file(GLOB FRONTEND_SRC "src/FrontEnd/*.cpp")
@@ -78,7 +79,7 @@ add_executable(mellis
     ${BACKEND_SRC}
     ${SUPPORT_SRC}
     ${MLIB_SRC}
-
+    ${LSP_SRC}
     ${CORE_SRC}
 )
 
